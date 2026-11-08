@@ -4,6 +4,17 @@ All notable changes to Feedster are listed here, newest first. Version numbers f
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-07
+
+### Added
+
+- A classic layout in the style of the old Google Reader, next to List and Cards above the article list. Each article is one line (star, feed, headline and the start of its text, date), and clicking it opens the article in place under the line. `j` and `k` open the next or previous article, `n` and `p` move without opening, and `o` or `Enter` opens or closes the current one.
+
+### Changed
+
+- The browser extension is on [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/feedster/). Settings → Browser extension links to it.
+- The Firefox extension declares Firefox for Android 142 as its minimum, which Mozilla's checks asked for. Desktop Firefox still needs 140. This release sends the extension to both stores.
+
 ## [1.5.1] - 2026-11-05
 
 ### Changed

@@ -44,7 +44,7 @@ Coming from another reader? Export your subscriptions as OPML and import the fil
 - Subscribe with a feed address or just a website address. Feedster finds the feed.
 - Folders, drag and drop, unread and starred views, and search across every article
 - Full articles for feeds that only send a summary
-- List view with a reading pane, or a card view
+- List view with a reading pane, a card view, or a classic view in the style of the old Google Reader: one line per headline, and the article opens in place under it
 - Feed icons, light and dark themes, and a layout that works on phones
 - Resizable panes and keyboard shortcuts
 - OPML import and export
@@ -97,6 +97,8 @@ Feedster serves plain HTTP. For HTTPS, put it behind a reverse proxy such as Cad
 | Key | Action |
 | --- | --- |
 | `j` / `k` | Next / previous article |
+| `n` / `p` | In the classic view: move to the next / previous headline without opening it |
+| `o` or `Enter` | In the classic view: open or close the article |
 | `s` | Star |
 | `m` | Mark read or unread |
 | `v` | Open the original page |

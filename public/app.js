@@ -26,6 +26,7 @@ const S = {
   cursor: null,
   loading: false,
   selected: -1,
+  open: -1, // classic layout: the article expanded under its headline
   listToken: 0,
 };
 
@@ -220,6 +221,7 @@ function renderHeader() {
   $('#viewSeg').hidden = S.scope.type === 'starred';
   for (const b of $('#layoutSeg').children) b.classList.toggle('on', b.dataset.layout === S.layout);
   $('#app').classList.toggle('layout-cards', S.layout === 'cards');
+  $('#app').classList.toggle('layout-classic', S.layout === 'classic');
 }
 
 function setScope(scope) {
@@ -392,6 +394,7 @@ async function loadArticles({ keepSelection = false } = {}) {
   S.cursor = data.cursor;
   S.loading = false;
   S.selected = prevId ? S.items.findIndex((a) => a.id === prevId) : -1;
+  S.open = -1;
   $('#articles').scrollTop = 0;
   renderList();
   if (S.selected < 0) showEmptyReader();
@@ -412,7 +415,21 @@ async function loadMore() {
   appendItems(start);
 }
 
+/** Classic layout: one line per article (star, feed, headline and the start of its text, date). */
+function classicRow(a) {
+  return `<div class="crow">
+    <button class="cstar ${a.starred ? 'on' : ''}" data-act="star" title="Star (s)">${a.starred ? '★' : '☆'}</button>
+    <span class="csrc">${esc(a.feed_title)}</span>
+    <span class="ctext"><span class="ct">${esc(a.title)}</span>${a.snippet ? `<span class="cs"> – ${esc(a.snippet)}</span>` : ''}</span>
+    <span class="cdate" title="${esc(new Date(a.published).toLocaleString())}">${timeAgo(a.published)}</span>
+  </div>`;
+}
+
 function itemHtml(a, i) {
+  if (S.layout === 'classic') {
+    const open = i === S.open;
+    return `<div class="entry ${a.read ? 'read' : ''} ${i === S.selected ? 'selected' : ''} ${open ? 'open' : ''}" data-i="${i}">${classicRow(a)}${open ? `<div class="entry-body">${articleHtml(a)}</div>` : ''}</div>`;
+  }
   if (S.layout === 'cards') {
     return `<div class="card ${a.read ? 'read' : ''} ${i === S.selected ? 'selected' : ''}" data-i="${i}">${articleHtml(a)}</div>`;
   }
@@ -449,13 +466,25 @@ function appendItems(start) {
 function updateItem(i) {
   const el = $(`#articles [data-i="${i}"]`);
   if (!el) return;
-  if (S.layout === 'cards') {
-    el.classList.toggle('read', Boolean(S.items[i].read));
+  const a = S.items[i];
+  if (S.layout === 'classic') {
+    // Only the headline line is redrawn, so an open article keeps its place and any playing media.
+    el.classList.toggle('read', Boolean(a.read));
     el.classList.toggle('selected', i === S.selected);
-    const star = el.querySelector('[data-act="star"]');
-    if (star) { star.classList.toggle('on', Boolean(S.items[i].starred)); star.textContent = S.items[i].starred ? '★' : '☆'; }
-    const read = el.querySelector('[data-act="read"]');
-    if (read) read.title = S.items[i].read ? 'Mark as unread (m)' : 'Mark as read (m)';
+    el.classList.toggle('open', i === S.open);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = classicRow(a);
+    el.querySelector('.crow').replaceWith(tmp.firstElementChild);
+    const body = el.querySelector('.entry-body');
+    if (i === S.open && !body) el.insertAdjacentHTML('beforeend', `<div class="entry-body">${articleHtml(a)}</div>`);
+    else if (i !== S.open && body) body.remove();
+    else if (body) syncArticleButtons(body, a);
+    return;
+  }
+  if (S.layout === 'cards') {
+    el.classList.toggle('read', Boolean(a.read));
+    el.classList.toggle('selected', i === S.selected);
+    syncArticleButtons(el, a);
     return;
   }
   const tmp = document.createElement('div');
@@ -474,6 +503,11 @@ $('#articles').addEventListener('click', (e) => {
     if (act.dataset.act === 'read') toggleRead(i);
     if (act.dataset.act === 'open') openOriginal(i);
     if (act.dataset.act === 'fulltext') toggleFull(i);
+    return;
+  }
+  if (S.layout === 'classic') {
+    if (e.target.closest('.crow')) toggleOpen(i);
+    else if (e.target.closest('a')) setRead(i, true);
     return;
   }
   if (S.layout === 'cards') {
@@ -577,6 +611,9 @@ function rerenderArticle(i) {
   if (S.layout === 'cards') {
     const el = $(`#articles [data-i="${i}"]`);
     if (el) el.innerHTML = articleHtml(a);
+  } else if (S.layout === 'classic') {
+    const body = $(`#articles [data-i="${i}"] .entry-body`);
+    if (body) body.innerHTML = articleHtml(a);
   } else if (i === S.selected) {
     $('#readerArticle').innerHTML = articleInner(a, { full: true });
   }
@@ -639,7 +676,45 @@ function showEmptyReader() {
   $('#app').classList.remove('reading');
 }
 
-async function select(i, { scroll = true } = {}) {
+/**
+ * Classic layout: move to an article and, unless `open` is false, expand it under its headline
+ * (closing the one that was open) and mark it read.
+ */
+async function selectClassic(i, { open = true, scroll = true } = {}) {
+  if (i < 0 || i >= S.items.length) return;
+  const a = S.items[i];
+  const prev = S.selected;
+  S.selected = i;
+  if (prev >= 0 && prev !== i) updateItem(prev);
+  updateItem(i);
+  if (i > S.items.length - 6) loadMore();
+  if (!open) {
+    if (scroll) $(`#articles [data-i="${i}"]`)?.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  if (a.content == null) a.content = (await api(`/api/articles/${a.id}`)).content;
+  if (S.items[S.selected] !== a) return; // moved on while loading
+  a.view ??= wantsFull(a) ? 'full' : 'feed';
+  const wasOpen = S.open;
+  S.open = i;
+  if (wasOpen >= 0 && wasOpen !== i) updateItem(wasOpen);
+  setRead(i, true);
+  updateItem(i);
+  if (scroll) $(`#articles [data-i="${i}"]`)?.scrollIntoView({ block: 'start' });
+  showFullIfWanted(i);
+}
+
+/** Classic layout: expand an article, or close it if it's the one open. */
+function toggleOpen(i) {
+  if (i < 0 || i >= S.items.length) return;
+  if (S.open !== i) return selectClassic(i);
+  S.open = -1;
+  S.selected = i;
+  updateItem(i);
+}
+
+async function select(i, { scroll = true, open = true } = {}) {
+  if (S.layout === 'classic') return selectClassic(i, { scroll, open });
   if (i < 0 || i >= S.items.length) return;
   const prev = S.selected;
   S.selected = i;
@@ -683,13 +758,18 @@ document.addEventListener('click', (e) => {
   setScope({ type: 'feed', id: Number(link.dataset.feedLink) });
 });
 
+/** Match an article's star and read buttons to its state. */
+function syncArticleButtons(root, a) {
+  const star = root.querySelector('.ra-top [data-act="star"]');
+  if (star) { star.classList.toggle('on', Boolean(a.starred)); star.textContent = a.starred ? '★' : '☆'; }
+  const read = root.querySelector('.ra-top [data-act="read"]');
+  if (read) read.title = `${a.read ? 'Mark as unread' : 'Mark as read'} (m)`;
+}
+
 function refreshReaderButtons() {
   const a = S.items[S.selected];
-  if (!a || S.layout === 'cards') return;
-  const star = $('#readerArticle [data-act="star"]');
-  if (star) { star.classList.toggle('on', Boolean(a.starred)); star.textContent = a.starred ? '★' : '☆'; }
-  const read = $('#readerArticle [data-act="read"]');
-  if (read) read.title = `${a.read ? 'Mark as unread' : 'Mark as read'} (m)`;
+  if (!a || S.layout !== 'list') return; // cards and classic redraw theirs in updateItem
+  syncArticleButtons($('#readerArticle'), a);
 }
 
 // ---------------------------------------------------------------- read / star
@@ -961,11 +1041,18 @@ document.addEventListener('keydown', (e) => {
   switch (e.key) {
     case 'j': case 'ArrowDown': select(Math.min(i + 1, S.items.length - 1)); break;
     case 'k': case 'ArrowUp': select(Math.max(i - 1, 0)); break;
-    case 'n': select(Math.min(i + 1, S.items.length - 1)); break;
-    case 'p': select(Math.max(i - 1, 0)); break;
+    // n/p move without opening in the classic layout; o and Enter then open or close the article
+    case 'n': select(Math.min(i + 1, S.items.length - 1), { open: false }); break;
+    case 'p': select(Math.max(i - 1, 0), { open: false }); break;
     case 's': toggleStar(i); break;
     case 'm': toggleRead(i); break;
-    case 'v': case 'o': openOriginal(i); break;
+    case 'o': case 'Enter':
+      if (e.key === 'Enter' && e.target.closest('button, a, [tabindex]')) return; // Enter on a focused control
+      if (S.layout === 'classic') toggleOpen(i);
+      else if (e.key === 'o') openOriginal(i);
+      else return;
+      break;
+    case 'v': openOriginal(i); break;
     case 'f': toggleFull(i); break;
     case 'r': refresh(); break;
     case 'A': markAllRead(); break;
@@ -989,7 +1076,7 @@ const paneVar = { sidebar: '--sidebar-w', list: '--list-w' };
 function clampPane(key, width) {
   const [min, max] = PANE_LIMITS[key];
   const other = key === 'sidebar'
-    ? (S.layout === 'cards' ? 0 : paneEl.list().getBoundingClientRect().width)
+    ? (S.layout !== 'list' ? 0 : paneEl.list().getBoundingClientRect().width)
     : paneEl.sidebar().getBoundingClientRect().width;
   const room = window.innerWidth - other - READER_MIN;
   return Math.round(Math.max(min, Math.min(max, width, room)));
