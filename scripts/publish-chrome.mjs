@@ -1,5 +1,5 @@
 // Uploads a new version of the extension to the Chrome Web Store and submits it for review.
-//   node scripts/publish-chrome.mjs feedster-extension.zip
+//   node scripts/publish-chrome.mjs spoolrss-extension.zip
 // Environment (GitHub secrets in CI):
 //   CWS_SERVICE_ACCOUNT  the Google service account's JSON key (the whole file's contents)
 //   CWS_PUBLISHER_ID     Developer Dashboard -> Publisher -> Settings

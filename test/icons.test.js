@@ -128,7 +128,7 @@ test('retries soon when the site could not be reached', async () => {
   assert.equal(iconDue(f.id), true, 'an unreachable site is retried within the hour');
 });
 
-test('a public feed cannot point Feedster at addresses on the local network', async () => {
+test('a public feed cannot point SpoolRSS at addresses on the local network', async () => {
   hits.length = 0;
   // An IP literal on the public internet, so no DNS is involved; nothing is fetched from it either.
   const f = feed('/with-icons/', 'https://93.184.215.14/feed.xml');

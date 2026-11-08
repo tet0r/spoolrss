@@ -3,7 +3,7 @@ import { db, tx, getSetting, setSetting } from './db.js';
 import { updateIcon, iconDue } from './icons.js';
 import { isBlocked, retryAfterMs } from './net.js';
 
-const USER_AGENT = 'Feedster/1.0 (+self-hosted feed reader)';
+const USER_AGENT = 'SpoolRSS/1.0 (+self-hosted feed reader)';
 const FETCH_TIMEOUT_MS = 20_000;
 
 // fast-xml-parser counts every entity (even &lt; and &amp;) toward a 1,000-per-document
@@ -195,7 +195,7 @@ async function httpGet(url, headers = {}) {
 
 const looksLikeFeed = (body) => /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<(rss|feed|rdf:RDF)[\s>]/i.test(body) || /^\s*\{[\s\S]*"version"\s*:\s*"https:\/\/jsonfeed/.test(body);
 
-// Big sites whose pages don't link to their feeds. Each one was checked to serve a feed to Feedster.
+// Big sites whose pages don't link to their feeds. Each one was checked to serve a feed to SpoolRSS.
 const KNOWN_FEEDS = {
   'mlb.com': 'https://www.mlb.com/feeds/news/rss.xml',
   'espn.com': 'https://www.espn.com/espn/rss/news',
@@ -235,7 +235,7 @@ function guessedFeeds(pageUrl) {
 // Probing many addresses at once looks like an attack to bot protection, so go a few at a time.
 const PROBE_BATCH = 3;
 
-const blockedMessage = (host) => `${host} asked for a browser check (bot protection such as Cloudflare), which feed readers can't complete. Feedster will retry less often until it clears, which it usually does on its own.`;
+const blockedMessage = (host) => `${host} asked for a browser check (bot protection such as Cloudflare), which feed readers can't complete. SpoolRSS will retry less often until it clears, which it usually does on its own.`;
 
 async function fetchFeed(url) {
   try {
@@ -348,7 +348,7 @@ export async function subscribe(inputUrl, folderId = null) {
   return { id, existed: false };
 }
 
-const REFRESH_MS = (Number(process.env.FEEDSTER_REFRESH_MINUTES) || 15) * 60_000;
+const REFRESH_MS = (Number(process.env.SPOOLRSS_REFRESH_MINUTES) || 15) * 60_000;
 const MAX_BACKOFF_MS = 24 * 3_600_000;
 
 class FetchError extends Error {
@@ -448,7 +448,7 @@ cleanStoredTitles();
 
 /** Drop read, unstarred articles past the retention window. */
 function pruneOld() {
-  const days = Number(process.env.FEEDSTER_RETENTION_DAYS || 90);
+  const days = Number(process.env.SPOOLRSS_RETENTION_DAYS || 90);
   if (!days) return;
   db.prepare('DELETE FROM articles WHERE read = 1 AND starred = 0 AND published < ?').run(Date.now() - days * 86_400_000);
 }
@@ -468,7 +468,7 @@ export function exportOpml() {
   for (const f of feeds.filter((x) => !x.folder_id)) lines.push(`    ${outline(f)}`);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <opml version="2.0">
-  <head><title>Feedster subscriptions</title><dateCreated>${new Date().toUTCString()}</dateCreated></head>
+  <head><title>SpoolRSS subscriptions</title><dateCreated>${new Date().toUTCString()}</dateCreated></head>
   <body>
 ${lines.join('\n')}
   </body>

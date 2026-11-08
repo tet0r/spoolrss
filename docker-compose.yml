@@ -1,25 +1,25 @@
 services:
-  feedster:
+  spoolrss:
     # Prebuilt image published from GitHub on every push to main.
     # To build from a local checkout instead, replace this line with `build: .`
-    image: ghcr.io/tet0r/feedster:latest
-    container_name: feedster
+    image: ghcr.io/tet0r/spoolrss:latest
+    container_name: spoolrss
     restart: unless-stopped
     # Run a tiny init as PID 1 so `docker compose down` stops the app immediately.
     init: true
     ports:
-      - "${FEEDSTER_PORT:-8080}:8080"
+      - "${SPOOLRSS_PORT:-8080}:8080"
     environment:
-      # Set FEEDSTER_PASSWORD (in a .env file, or your stack's environment variables)
+      # Set SPOOLRSS_PASSWORD (in a .env file, or your stack's environment variables)
       # to require sign-in. Strongly recommended if exposed beyond your LAN.
-      FEEDSTER_PASSWORD: ${FEEDSTER_PASSWORD:-}
-      FEEDSTER_REFRESH_MINUTES: ${FEEDSTER_REFRESH_MINUTES:-15}
-      FEEDSTER_RETENTION_DAYS: ${FEEDSTER_RETENTION_DAYS:-90}
+      SPOOLRSS_PASSWORD: ${SPOOLRSS_PASSWORD:-}
+      SPOOLRSS_REFRESH_MINUTES: ${SPOOLRSS_REFRESH_MINUTES:-15}
+      SPOOLRSS_RETENTION_DAYS: ${SPOOLRSS_RETENTION_DAYS:-90}
       # Check GitHub every 5 minutes for a newer release and show a banner.
       UPDATE_CHECK: ${UPDATE_CHECK:-true}
       TZ: ${TZ:-UTC}
     volumes:
-      - feedster-data:/data
+      - spoolrss-data:/data
     healthcheck:
       # style.css is served without sign-in, so this works with a password set.
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/style.css"]
@@ -29,4 +29,4 @@ services:
       start_period: 10s
 
 volumes:
-  feedster-data:
+  spoolrss-data:

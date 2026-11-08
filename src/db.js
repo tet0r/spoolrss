@@ -1,11 +1,23 @@
+import './env.js';
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dataDir = process.env.FEEDSTER_DATA || path.resolve('data');
+const dataDir = process.env.SPOOLRSS_DATA || path.resolve('data');
 fs.mkdirSync(dataDir, { recursive: true });
 
-export const db = new DatabaseSync(path.join(dataDir, 'feedster.db'));
+// Databases from before the rename (Feedster) are taken over under the new name, along with
+// SQLite's -wal and -shm files, which hold changes not yet written to the main file.
+const dbFile = path.join(dataDir, 'spoolrss.db');
+const oldFile = path.join(dataDir, 'feedster.db');
+if (!fs.existsSync(dbFile) && fs.existsSync(oldFile)) {
+  for (const suffix of ['-wal', '-shm', '']) {
+    if (fs.existsSync(oldFile + suffix)) fs.renameSync(oldFile + suffix, dbFile + suffix);
+  }
+  console.log(`Renamed ${oldFile} to ${dbFile}`);
+}
+
+export const db = new DatabaseSync(dbFile);
 
 // Wait for another connection's lock instead of failing with "database is locked".
 db.exec('PRAGMA busy_timeout = 5000');
@@ -85,6 +97,9 @@ function addColumn(table, column, definition) {
 // Failed refreshes in a row, and when to try the feed again (see refreshFeed).
 addColumn('feeds', 'fail_count', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('feeds', 'next_fetch_at', 'INTEGER');
+// 1 keeps the feed's articles out of "All articles" and its unread count (still shown in the
+// feed itself, its folder and reading apps).
+addColumn('feeds', 'hide_in_all', 'INTEGER NOT NULL DEFAULT 0');
 
 export function getSetting(key) {
   return db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value ?? null;

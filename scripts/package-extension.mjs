@@ -1,7 +1,7 @@
 // Builds the browser extension packages in dist/:
-//   feedster-chrome.zip      for the Chrome Web Store (also Edge Add-ons and other Chromium browsers)
-//   feedster-firefox.zip     for Firefox Add-ons; dist/firefox/ is the same files, for web-ext
-//   feedster-extension.zip   one package that loads in both browsers, for developer-mode installs
+//   spoolrss-chrome.zip      for the Chrome Web Store (also Edge Add-ons and other Chromium browsers)
+//   spoolrss-firefox.zip     for Firefox Add-ons; dist/firefox/ is the same files, for web-ext
+//   spoolrss-extension.zip   one package that loads in both browsers, for developer-mode installs
 // The version comes from the VERSION file.
 //   node scripts/package-extension.mjs
 
@@ -102,7 +102,7 @@ export function buildPackages({ outDir = path.join(root, 'dist') } = {}) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
   const written = {};
-  for (const [target, file] of [['chrome', 'feedster-chrome.zip'], ['firefox', 'feedster-firefox.zip'], ['both', 'feedster-extension.zip']]) {
+  for (const [target, file] of [['chrome', 'spoolrss-chrome.zip'], ['firefox', 'spoolrss-firefox.zip'], ['both', 'spoolrss-extension.zip']]) {
     const entries = withManifest(target);
     fs.writeFileSync(path.join(outDir, file), zip(entries));
     written[target] = path.join(outDir, file);

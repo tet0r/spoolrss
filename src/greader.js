@@ -131,8 +131,8 @@ function setFlag(itemIds, column, value) {
 // ---- endpoints ----
 
 const routes = {
-  'GET /reader/api/0/token': () => 'feedster-token',
-  'POST /reader/api/0/token': () => 'feedster-token',
+  'GET /reader/api/0/token': () => 'spoolrss-token',
+  'POST /reader/api/0/token': () => 'spoolrss-token',
 
   'GET /reader/api/0/user-info': () => {
     const { username } = syncStatus();

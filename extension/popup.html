@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Feedster</title>
+  <title>SpoolRSS</title>
   <link rel="stylesheet" href="ui.css">
   <style>
     body { width: 340px; }
@@ -16,6 +16,15 @@
     .item:hover { background: var(--bg-soft); }
     .item .t { font-weight: 550; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .item .m { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .found { padding: 8px 14px 10px; background: var(--bg-soft); border-bottom: 1px solid var(--border); }
+    .found h2 { margin: 0 0 4px; font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .feed { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+    .feed .info { flex: 1; min-width: 0; }
+    .feed .t { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .feed .u { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .feed .btn { padding: 4px 10px; font-size: 12.5px; flex: none; }
+    .feed .done { font-size: 12.5px; color: var(--ok); flex: none; }
+    .found .note { margin: 4px 0 0; font-size: 12px; }
     .message { padding: 18px 14px; text-align: center; color: var(--text-soft); }
     .message p { margin: 0 0 12px; }
     footer { display: flex; align-items: center; gap: 4px; padding: 10px 14px; }
@@ -25,13 +34,18 @@
 <body>
   <header>
     <img src="icons/icon-32.png" alt="">
-    <span class="name">Feedster</span>
+    <span class="name">SpoolRSS</span>
     <span class="count" id="count"></span>
   </header>
+  <section class="found" id="found" hidden>
+    <h2>Feeds on this page</h2>
+    <div id="feeds"></div>
+    <p class="note" id="foundNote" hidden></p>
+  </section>
   <div class="message" id="message" hidden></div>
   <div class="list" id="list"></div>
   <footer id="footer">
-    <button class="btn primary" id="open">Open Feedster</button>
+    <button class="btn primary" id="open">Open SpoolRSS</button>
     <button class="link" id="refresh" title="Check now">Refresh</button>
     <button class="link" id="settings">Settings</button>
   </footer>

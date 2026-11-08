@@ -9,7 +9,7 @@ const versionFile = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'
 export const VERSION = fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8').trim() : 'dev';
 
 const UPDATE_CHECK = ['1', 'true', 'yes'].includes((process.env.UPDATE_CHECK ?? 'true').toLowerCase());
-const UPDATE_REPO = process.env.UPDATE_REPO || 'tet0r/feedster';
+const UPDATE_REPO = process.env.UPDATE_REPO || 'tet0r/spoolrss';
 // 12 requests an hour, well inside GitHub's limit of 60 for anonymous callers
 const UPDATE_INTERVAL_MS = 5 * 60_000;
 
@@ -36,7 +36,7 @@ export function availableUpdate() {
 /** Ask GitHub for the latest release and log once per new version. */
 export async function checkForUpdate() {
   const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': `Feedster/${VERSION}` },
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': `SpoolRSS/${VERSION}` },
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status !== 200) return;
@@ -49,7 +49,7 @@ export async function checkForUpdate() {
   const update = availableUpdate();
   if (update && getSetting('update_notified') !== latest) {
     setSetting('update_notified', latest);
-    console.log(`Feedster ${latest} is available (running ${VERSION}). Update with: docker compose pull && docker compose up -d`);
+    console.log(`SpoolRSS ${latest} is available (running ${VERSION}). Update with: docker compose pull && docker compose up -d`);
   }
 }
 

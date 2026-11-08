@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Feedster</title>
+  <title>SpoolRSS</title>
   <link rel="icon" href="/icon.svg">
   <link rel="stylesheet" href="/style.css">
   <script src="/vendor/purify.min.js"></script>
@@ -14,7 +14,7 @@
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <img src="/icon.svg" alt="" width="22" height="22">
-        <span>Feedster</span>
+        <span>SpoolRSS</span>
       </div>
       <button class="btn primary add-btn" id="addBtn">+ Add subscription</button>
       <nav class="nav" id="nav"></nav>
@@ -111,7 +111,7 @@
       </section>
       <section>
         <h4>Reading apps</h4>
-        <p class="muted">Use Feedster from apps and browser extensions that support a <b>FreshRSS</b>, <b>Google Reader</b> or <b>Fever</b> account, such as Reeder, NetNewsWire, ReadKit, FeedMe or Fluent Reader. Read and starred articles stay in sync both ways.</p>
+        <p class="muted">Use SpoolRSS from apps and browser extensions that support a <b>FreshRSS</b>, <b>Google Reader</b> or <b>Fever</b> account, such as Reeder, NetNewsWire, ReadKit, FeedMe or Fluent Reader. Read and starred articles stay in sync both ways.</p>
         <p id="syncState"></p>
         <div class="sync-form">
           <input type="text" id="syncUser" placeholder="Username" autocomplete="off">
@@ -129,16 +129,16 @@
       </section>
       <section>
         <h4>Browser extension</h4>
-        <p class="muted">See your unread count in the Chrome, Edge or Firefox toolbar. Click it for your latest unread articles and a button to open Feedster. It signs in with the Reading apps username and app password above.</p>
+        <p class="muted">See your unread count in the Chrome, Edge or Firefox toolbar. Click it for your latest unread articles, a button to open SpoolRSS, and the feeds on the page you're viewing, ready to subscribe. It signs in with the Reading apps username and app password above.</p>
         <div class="row">
-          <a class="btn" href="https://chromewebstore.google.com/detail/feedster/lecfbammajmdcafoodjalelofaelbaoc" target="_blank" rel="noopener">Get it for Chrome or Edge</a>
-          <a class="btn" href="https://addons.mozilla.org/firefox/addon/feedster/" target="_blank" rel="noopener">Get it for Firefox</a>
+          <a class="btn" href="https://chromewebstore.google.com/detail/lecfbammajmdcafoodjalelofaelbaoc" target="_blank" rel="noopener">Get it for Chrome or Edge</a>
+          <a class="btn" href="https://addons.mozilla.org/firefox/addon/spoolrss/" target="_blank" rel="noopener">Get it for Firefox</a>
         </div>
       </section>
       <section>
         <h4>Subscribe from your browser</h4>
-        <p class="muted">Drag this button to your bookmarks bar. On any website, click it to subscribe in Feedster.</p>
-        <div class="row"><a class="btn" id="bookmarklet" href="#">+ Feedster</a></div>
+        <p class="muted">Drag this button to your bookmarks bar. On any website, click it to subscribe in SpoolRSS.</p>
+        <div class="row"><a class="btn" id="bookmarklet" href="#">+ SpoolRSS</a></div>
         <p class="muted">Or install <b>RSSHub Radar</b> for Chrome or Firefox, which shows a site's feeds in the toolbar: in its settings, turn on quick subscription for <b>FreshRSS</b> and enter <code id="radarUrl"></code> as the address.</p>
       </section>
       <section>

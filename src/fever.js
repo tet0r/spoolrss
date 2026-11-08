@@ -3,7 +3,7 @@ import { send, formParams, tooManyFailures, recordFailure } from './http.js';
 import { checkFeverKey } from './sync.js';
 
 // Fever API (https://feedafever.com/api), served at /api/fever.php.
-// Folders are Fever "groups"; Feedster's ids are used as-is.
+// Folders are Fever "groups"; SpoolRSS's ids are used as-is.
 
 // 1x1 transparent GIF: Fever clients expect every feed to point at a favicon.
 const BLANK_FAVICON = { id: 1, data: 'image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' };

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Feedster",
-  "description": "Shows your Feedster unread count in the toolbar, with your latest unread articles and a button to open Feedster.",
-  "version": "1.6.0",
+  "name": "SpoolRSS",
+  "description": "Your unread count from SpoolRSS, FreshRSS, Miniflux and more in the toolbar, and one-click subscribe to feeds on any page.",
+  "version": "2.0.0",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -10,7 +10,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Feedster",
+    "default_title": "SpoolRSS",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -29,9 +29,10 @@
     "open_in_tab": true
   },
   "permissions": [
+    "activeTab",
     "alarms",
-    "storage",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "optional_host_permissions": [
     "http://*/*",

@@ -28,7 +28,7 @@ function unzip(buf) {
 }
 
 test('builds a Chrome zip, a Firefox zip and a combined one, each with the right manifest', () => {
-  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedster-pkg-'));
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spoolrss-pkg-'));
   try {
     const { version, written } = buildPackages({ outDir });
     assert.equal(version, fs.readFileSync('VERSION', 'utf8').trim());

@@ -4,7 +4,7 @@ import { isPrivateHost, readHead, isBlocked, fetchChecked } from './net.js';
 // Feed icons, looked up on the server and kept in the database:
 // the feed's own image first, then the website's favicon. With neither, the UI shows a letter.
 
-const USER_AGENT = 'Feedster/1.0 (+self-hosted feed reader)';
+const USER_AGENT = 'SpoolRSS/1.0 (+self-hosted feed reader)';
 const MAX_BYTES = 512 * 1024;
 const FOUND_TTL_MS = 30 * 86_400_000;
 const MISSING_TTL_MS = 3 * 86_400_000;

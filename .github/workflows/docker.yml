@@ -71,14 +71,14 @@ jobs:
           fi
 
       # The toolbar extension ships with each release, stamped with the release version:
-      # feedster-chrome.zip and feedster-firefox.zip for the stores, and feedster-extension.zip
+      # spoolrss-chrome.zip and spoolrss-firefox.zip for the stores, and spoolrss-extension.zip
       # (loads in both) for developer-mode installs. Mozilla's linter checks the Firefox package.
       - name: Browser extension
         id: extension
         run: |
           node scripts/package-extension.mjs
           npx -y web-ext@10.7.0 lint --source-dir dist/firefox --self-hosted
-          unzip -l dist/feedster-chrome.zip
+          unzip -l dist/spoolrss-chrome.zip
 
       - uses: docker/setup-qemu-action@v3
 
@@ -110,7 +110,7 @@ jobs:
         with:
           context: .
           load: true
-          tags: feedster:test
+          tags: spoolrss:test
           cache-from: type=gha
 
       # Starts the container the way the compose file does and checks it serves,
@@ -118,11 +118,11 @@ jobs:
       - name: Smoke test
         run: |
           docker volume create smoke-data
-          docker run -d --name fs -p 8080:8080 -v smoke-data:/data -e FEEDSTER_REFRESH_MINUTES=0 feedster:test
+          docker run -d --name fs -p 8080:8080 -v smoke-data:/data -e SPOOLRSS_REFRESH_MINUTES=0 spoolrss:test
           for i in $(seq 1 30); do curl -fs http://localhost:8080/api/state > /dev/null && break; sleep 1; done
           curl -fs http://localhost:8080/api/state | tee state.json
           grep -q "\"version\":\"${{ steps.version.outputs.version }}\"" state.json
-          docker exec fs test -s /data/feedster.db
+          docker exec fs test -s /data/spoolrss.db
           uid=$(docker exec fs stat -c %u /proc/1)
           echo "app runs as uid $uid"; test "$uid" != "0"
 
@@ -142,6 +142,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # SpoolRSS was called Feedster. Installs still using ghcr.io/tet0r/feedster keep getting
+      # updates: the same image is tagged there too. A failure here doesn't stop the release.
+      - name: Also publish as ghcr.io/tet0r/feedster
+        if: github.event_name != 'pull_request' && github.event.repository.name == 'spoolrss'
+        continue-on-error: true
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          for tag in $TAGS; do
+            docker buildx imagetools create -t "${tag/\/spoolrss:/\/feedster:}" "$tag"
+          done
+
       # Tags the commit and publishes this version's CHANGELOG section as the
       # release notes; running instances see the release and offer the update
       - name: Create release
@@ -153,9 +165,9 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           awk -v v="$version" 'index($0, "## [" v "]") == 1 {on=1; next} /^## \[/ {on=0} /^\[[^]]+\]: / {next} on' CHANGELOG.md > notes.md
           if grep -q '[^[:space:]]' notes.md; then
-            gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" --notes-file notes.md dist/feedster-chrome.zip dist/feedster-firefox.zip dist/feedster-extension.zip
+            gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" --notes-file notes.md dist/spoolrss-chrome.zip dist/spoolrss-firefox.zip dist/spoolrss-extension.zip
           else
-            gh release create "v$version" --target "$GITHUB_SHA" --generate-notes dist/feedster-chrome.zip dist/feedster-firefox.zip dist/feedster-extension.zip
+            gh release create "v$version" --target "$GITHUB_SHA" --generate-notes dist/spoolrss-chrome.zip dist/spoolrss-firefox.zip dist/spoolrss-extension.zip
           fi
 
       # The browser extension goes to both stores with each new release, or on demand from the
@@ -199,7 +211,7 @@ jobs:
             exit 0
           fi
           status=0
-          node scripts/publish-chrome.mjs dist/feedster-chrome.zip > cws.log 2>&1 || status=$?
+          node scripts/publish-chrome.mjs dist/spoolrss-chrome.zip > cws.log 2>&1 || status=$?
           cat cws.log
           if [ "$status" -ne 0 ]; then
             node scripts/annotate-error.mjs "Chrome Web Store" < cws.log

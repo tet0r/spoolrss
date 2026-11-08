@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-// Runs a real Feedster against a local feed and drives it the way reading apps do.
+// Runs a real SpoolRSS against a local feed and drives it the way reading apps do.
 
 const PORT = 18080 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -18,7 +18,7 @@ let feedUrl;
 let app;
 let dataDir;
 
-// A 16x16 PNG header: enough for Feedster to accept it as the feed's icon.
+// A 16x16 PNG header: enough for SpoolRSS to accept it as the feed's icon.
 const ICON = Buffer.concat([Buffer.from('89504e470d0a1a0a0000000d49484452000000100000001008060000001ff3ff61', 'hex'), Buffer.alloc(32)]);
 
 // The page each article links to: navigation and footer around a long article body.
@@ -36,7 +36,7 @@ const rss = (n) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Loca
 }</channel></rss>`;
 
 async function web(p, opts = {}) {
-  const res = await fetch(BASE + p, { ...opts, headers: { 'Content-Type': 'application/json', 'X-Feedster': '1', ...opts.headers } });
+  const res = await fetch(BASE + p, { ...opts, headers: { 'Content-Type': 'application/json', 'X-SpoolRSS': '1', ...opts.headers } });
   return res.json();
 }
 
@@ -76,9 +76,9 @@ before(async () => {
   await new Promise((r) => feedServer.listen(0, '127.0.0.1', r));
   feedUrl = `http://127.0.0.1:${feedServer.address().port}/feed.xml`;
 
-  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedster-test-'));
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spoolrss-test-'));
   app = spawn(process.execPath, ['src/server.js'], {
-    env: { ...process.env, PORT: String(PORT), FEEDSTER_DATA: dataDir, FEEDSTER_REFRESH_MINUTES: '0', UPDATE_CHECK: 'false', FEEDSTER_PASSWORD: '' },
+    env: { ...process.env, PORT: String(PORT), SPOOLRSS_DATA: dataDir, SPOOLRSS_REFRESH_MINUTES: '0', UPDATE_CHECK: 'false', SPOOLRSS_PASSWORD: '' },
     stdio: 'ignore',
   });
   // CI machines can be slow to start a process; wait up to 20s and fail clearly if it never comes up.
@@ -86,7 +86,7 @@ before(async () => {
   for (let i = 0; i < 200 && !up; i++) {
     try { up = (await fetch(`${BASE}/api/state`)).ok; } catch { await new Promise((r) => setTimeout(r, 100)); }
   }
-  if (!up) throw new Error(`Feedster did not start on port ${PORT}`);
+  if (!up) throw new Error(`SpoolRSS did not start on port ${PORT}`);
   await web('/api/folders', { method: 'POST', body: JSON.stringify({ name: 'Tech' }) });
   await web('/api/feeds', { method: 'POST', body: JSON.stringify({ url: feedUrl, folderId: 1 }) });
 });
@@ -275,4 +275,33 @@ test('subscribe links from browser extensions open the Add dialog', async () => 
   // The target page is the app itself, which reads ?add= and asks before subscribing.
   assert.equal((await fetch(`${BASE}/?add=${enc}`)).status, 200);
   assert.equal((await web('/api/state')).feeds.length, 1, 'nothing was subscribed by following the link');
+});
+
+test('a feed hidden from All articles leaves its list and count, but keeps its own view and folder', async () => {
+  const feed = (await web('/api/state')).feeds[0];
+  const items = (await web(`/api/articles?feed=${feed.id}&view=all`)).items;
+  for (const a of items.slice(0, 2)) await web(`/api/articles/${a.id}`, { method: 'PATCH', body: JSON.stringify({ read: false }) });
+  assert.equal((await web('/api/state')).totals.unread, 2);
+
+  await web(`/api/feeds/${feed.id}`, { method: 'PATCH', body: JSON.stringify({ hideInAll: true }) });
+  const state = await web('/api/state');
+  assert.equal(state.totals.unread, 0, 'the All articles count leaves it out');
+  assert.equal(state.feeds[0].hide_in_all, 1);
+  assert.equal(state.feeds[0].unread, 2, 'the feed keeps its own count');
+  assert.equal((await web('/api/articles?view=all')).items.length, 0);
+  assert.equal((await web(`/api/articles?view=unread&feed=${feed.id}`)).items.length, 2);
+  assert.equal((await web(`/api/articles?view=unread&folder=${feed.folder_id}`)).items.length, 2);
+  assert.equal((await web('/api/mark-read', { method: 'POST', body: '{}' })).marked, 0, 'mark all as read in All articles leaves it alone');
+
+  await web(`/api/feeds/${feed.id}`, { method: 'PATCH', body: JSON.stringify({ hideInAll: false }) });
+  assert.equal((await web('/api/state')).totals.unread, 2);
+  assert.equal((await web('/api/articles?view=unread')).items.length, 2);
+});
+
+test('pages open from before the rename still send changes (X-Feedster)', async () => {
+  const id = (await web('/api/articles?view=all')).items[0].id;
+  const res = await fetch(`${BASE}/api/articles/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Feedster': '1' }, body: '{"read":true}' });
+  assert.equal(res.status, 200);
+  const none = await fetch(`${BASE}/api/articles/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{"read":true}' });
+  assert.equal(none.status, 403);
 });

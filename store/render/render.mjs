@@ -1,5 +1,7 @@
-// Renders the store listing images in store/images from the real extension pages.
+// Renders the store listing images in store/images, and the extension image in the README
+// (docs/extension-popup.png), from the real extension pages.
 //   node store/render/render.mjs
+// The app's own screenshot comes from render-app.mjs.
 // Needs Chrome or Edge installed (set CHROME=/path/to/chrome to choose one).
 // The popup and options pages get a stand-in browser API filled with made-up sample articles.
 
@@ -16,6 +18,7 @@ const out = path.join(root, 'store', 'images');
 
 const minutes = (n) => Date.now() - n * 60_000;
 const SAMPLE = {
+  platform: 'spoolrss',
   server: 'https://feeds.example.com',
   username: 'reader',
   token: 'reader/sample',
@@ -32,6 +35,13 @@ const SAMPLE = {
   },
 };
 
+// The page the popup is opened on, and the feeds it offers.
+const PAGE = { id: 1, url: 'https://riverside-local.example/news/bike-lanes' };
+const PAGE_FEEDS = [
+  { url: 'https://riverside-local.example/feed.xml', title: 'Riverside Local', type: 'application/rss+xml' },
+  { url: 'https://riverside-local.example/sports/feed.xml', title: 'Riverside Local: Sports', type: 'application/rss+xml' },
+];
+
 const MOCK = `<script>
   const store = ${JSON.stringify(SAMPLE)};
   window.chrome = {
@@ -41,7 +51,8 @@ const MOCK = `<script>
     } },
     permissions: { request: async () => true, remove: async () => true },
     runtime: { sendMessage: async () => ({}), openOptionsPage() {} },
-    tabs: { query: async () => [], create() {} }, windows: { update() {} },
+    tabs: { query: async (q) => (q.active ? [${JSON.stringify(PAGE)}] : []), create() {} }, windows: { update() {} },
+    scripting: { executeScript: async () => [{ result: ${JSON.stringify(PAGE_FEEDS)} }] },
   };
 </script>`;
 
@@ -77,25 +88,27 @@ function findChrome() {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const chrome = findChrome();
+// [output file, page, width, height, pixel ratio]
 const shots = [
-  ['screenshot-popup.png', 'screenshot-popup.html', 1280, 800],
-  ['screenshot-setup.png', 'screenshot-setup.html', 1280, 800],
-  ['promo-small.png', 'promo-small.html', 440, 280],
+  [path.join(out, 'screenshot-popup.png'), 'screenshot-popup.html', 1280, 800, 1],
+  [path.join(out, 'screenshot-setup.png'), 'screenshot-setup.html', 1280, 800, 1],
+  [path.join(out, 'promo-small.png'), 'promo-small.html', 440, 280, 1],
+  [path.join(root, 'docs', 'extension-popup.png'), 'docs-popup.html', 380, 590, 2],
 ];
 fs.mkdirSync(out, { recursive: true });
 // A throwaway profile, so a Chrome that is already open doesn't take over the request.
-const profile = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'feedster-render-'));
+const profile = fs.mkdtempSync(path.join((await import('node:os')).tmpdir(), 'spoolrss-render-'));
 try {
-  for (const [name, page, w, h] of shots) {
+  for (const [file, page, w, h, scale] of shots) {
     // Not execFileSync: that would block this process, and with it the server Chrome is loading from.
     await promisify(execFile)(chrome, [
-      '--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1',
+      '--headless=new', '--disable-gpu', '--hide-scrollbars', `--force-device-scale-factor=${scale}`,
       '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`,
       // Light mode in every frame, whatever this computer is set to.
       '--force-prefers-color-scheme=light', '--blink-settings=preferredColorScheme=1', `--window-size=${w},${h}`, '--virtual-time-budget=3000',
-      `--screenshot=${path.join(out, name)}`, `${base}/${page}`,
+      `--screenshot=${file}`, `${base}/${page}`,
     ], { timeout: 60_000 });
-    console.log(`wrote store/images/${name} (${w}x${h})`);
+    console.log(`wrote ${path.relative(root, file)} (${w * scale}x${h * scale})`);
   }
 } finally {
   server.close();

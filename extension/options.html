@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Feedster extension settings</title>
+  <title>SpoolRSS extension settings</title>
   <link rel="stylesheet" href="ui.css">
   <style>
     body { padding: 32px 16px; }
@@ -16,25 +16,30 @@
     input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     #status { min-height: 1.5em; margin: 0; }
-    .help { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-soft); }
-    .help ol { padding-left: 20px; }
+    .help { margin: 0; padding: 10px 12px; border-radius: 6px; background: var(--bg-soft); font-size: 13px; color: var(--text-soft); }
+    .about { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-soft); }
+    .about p { margin: 0 0 8px; }
   </style>
 </head>
 <body>
   <main>
-    <h1><img src="icons/icon-48.png" alt="">Feedster</h1>
-    <p class="muted">Shows your unread count in the toolbar. Click the icon to see your latest unread articles and open Feedster.</p>
+    <h1><img src="icons/icon-48.png" alt="">SpoolRSS</h1>
+    <p class="muted">Shows your unread count in the toolbar. Click the icon to see your latest unread articles, open your reader, or subscribe to the feeds on the page you're viewing.</p>
 
     <form id="form">
-      <label>Feedster address
-        <input id="server" type="text" placeholder="https://feeds.example.com" autocomplete="url" required>
+      <label>Feed reader
+        <select id="platform"></select>
       </label>
-      <label>Username
-        <input id="username" type="text" autocomplete="username" required>
+      <p class="help" id="help"></p>
+      <label><span id="serverLabel">Address</span>
+        <input id="server" type="text" autocomplete="url" required>
       </label>
-      <label>App password
-        <input id="password" type="password" autocomplete="current-password" placeholder="Leave empty to keep the current sign-in">
-        <small>From Feedster's Settings → Reading apps. It is used once to sign in and not stored.</small>
+      <label id="usernameRow">Username
+        <input id="username" type="text" autocomplete="username">
+      </label>
+      <label><span id="passwordLabel">Password</span>
+        <input id="password" type="password" autocomplete="current-password">
+        <small id="passwordNote"></small>
       </label>
       <label>Check for new articles
         <select id="interval">
@@ -52,13 +57,9 @@
       </div>
     </form>
 
-    <div class="help">
-      <b>Setting up</b>
-      <ol>
-        <li>In Feedster, open <b>Settings → Reading apps</b> and choose a username and app password.</li>
-        <li>Enter your Feedster address, that username and app password here, then <b>Connect</b>.</li>
-        <li>Allow access to your Feedster address when the browser asks. The extension can't see any other site.</li>
-      </ol>
+    <div class="about">
+      <p>When you connect, your browser asks to allow access to that one address. The extension can't see any other site, except the page you're on when you click its toolbar button, which it checks for feeds.</p>
+      <p>Don't have a feed reader yet? <a href="https://github.com/tet0r/spoolrss" target="_blank" rel="noopener">SpoolRSS</a> is free and runs on your own server.</p>
     </div>
   </main>
   <script type="module" src="options.js"></script>

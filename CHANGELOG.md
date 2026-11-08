@@ -1,8 +1,24 @@
 # Changelog
 
-All notable changes to Feedster are listed here, newest first. Version numbers follow [semantic versioning](https://semver.org/). The section for a version becomes its GitHub release notes.
+All notable changes to SpoolRSS (called Feedster before 2.0.0) are listed here, newest first. Version numbers follow [semantic versioning](https://semver.org/). The section for a version becomes its GitHub release notes.
 
 ## [Unreleased]
+
+## [2.0.0] - 2026-11-08
+
+Feedster is now **SpoolRSS**. Existing installs carry on with their data, settings and sign-ins; see [Updating from Feedster](https://github.com/tet0r/spoolrss#updating-from-feedster).
+
+### Changed
+
+- The new name everywhere: the app, the browser extension, the Docker image (`ghcr.io/tet0r/spoolrss`) and the GitHub repository (`tet0r/spoolrss`). The old image name keeps receiving updates for now.
+- On first start, the database `feedster.db` is renamed to `spoolrss.db` in the same folder. The `FEEDSTER_` settings still work alongside the new `SPOOLRSS_` names, and nobody is signed out.
+- The classic layout is the default. If you picked a layout before, SpoolRSS keeps it.
+
+### Added
+
+- Hide a feed from **All articles**: in the feed's menu, choose **Hide from All articles**. Its articles leave All articles and its unread count (including the count in the tab title), and stay in the feed's own view, its folder and reading apps. Hidden feeds are shown in italics with ⊘ in the sidebar.
+- The browser extension works with other feed readers too: FreshRSS, Miniflux, Tiny Tiny RSS, Nextcloud News, and readers with a Google Reader or Fever API. Choose yours in the extension's settings.
+- The extension finds the feeds on the page you're viewing. Click its button to see them under "Feeds on this page" and subscribe in one click (or copy the address, for Fever readers). This adds the `activeTab` permission, which browsers grant without asking: the extension can look at a page only when you click its button there.
 
 ## [1.6.0] - 2026-11-07
 

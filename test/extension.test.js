@@ -5,13 +5,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { normalizeServer, originPattern, signIn, unreadSummary, badgeText, AuthError } from '../extension/api.js';
+import { normalizeServer, originPattern, signIn, unreadSummary, badgeText, AuthError, subscribe, webAddress } from '../extension/api.js';
 
-// Runs the browser extension's code against a real Feedster, with a stand-in for the browser's
+// Runs the browser extension's code against a real SpoolRSS, with a stand-in for the browser's
 // extension API that records what the toolbar badge would show.
 
 const PORT = 19100 + Math.floor(Math.random() * 800);
 const SERVER = `http://127.0.0.1:${PORT}`;
+const ACCOUNT = { platform: 'spoolrss', server: SERVER };
 const USER = 'reader';
 const PASS = 'extension pass';
 const FEED = `<?xml version="1.0"?><rss version="2.0"><channel><title>Local</title><link>/</link>${
@@ -22,21 +23,21 @@ let feedServer;
 let app;
 let dataDir;
 
-const web = (p, opts = {}) => fetch(SERVER + p, { ...opts, headers: { 'Content-Type': 'application/json', 'X-Feedster': '1' } }).then((r) => r.json());
+const web = (p, opts = {}) => fetch(SERVER + p, { ...opts, headers: { 'Content-Type': 'application/json', 'X-SpoolRSS': '1' } }).then((r) => r.json());
 
 before(async () => {
   feedServer = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'application/rss+xml' }); res.end(FEED); });
   await new Promise((r) => feedServer.listen(0, '127.0.0.1', r));
-  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedster-ext-'));
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spoolrss-ext-'));
   app = spawn(process.execPath, ['src/server.js'], {
-    env: { ...process.env, PORT: String(PORT), FEEDSTER_DATA: dataDir, FEEDSTER_REFRESH_MINUTES: '0', UPDATE_CHECK: 'false', FEEDSTER_PASSWORD: '' },
+    env: { ...process.env, PORT: String(PORT), SPOOLRSS_DATA: dataDir, SPOOLRSS_REFRESH_MINUTES: '0', UPDATE_CHECK: 'false', SPOOLRSS_PASSWORD: '' },
     stdio: 'ignore',
   });
   let up = false;
   for (let i = 0; i < 200 && !up; i++) {
     try { up = (await fetch(`${SERVER}/api/state`)).ok; } catch { await new Promise((r) => setTimeout(r, 100)); }
   }
-  if (!up) throw new Error('Feedster did not start');
+  if (!up) throw new Error('SpoolRSS did not start');
   await web('/api/sync', { method: 'PUT', body: JSON.stringify({ username: USER, password: PASS }) });
   await web('/api/feeds', { method: 'POST', body: JSON.stringify({ url: `http://127.0.0.1:${feedServer.address().port}/feed.xml` }) });
 });
@@ -47,11 +48,19 @@ after(async () => {
   fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
-test('normalizes the Feedster address people type', () => {
+test('normalizes the SpoolRSS address people type', () => {
   assert.equal(normalizeServer('feeds.example.com/'), 'https://feeds.example.com');
-  assert.equal(normalizeServer('http://nas.local:8080/feedster/'), 'http://nas.local:8080/feedster');
-  assert.equal(originPattern('http://nas.local:8080/feedster'), 'http://nas.local:8080/*');
-  assert.throws(() => normalizeServer('  '), /Enter your Feedster address/);
+  assert.equal(normalizeServer('http://nas.local:8080/spoolrss/'), 'http://nas.local:8080/spoolrss');
+  assert.equal(originPattern('http://nas.local:8080/spoolrss'), 'http://nas.local:8080/*');
+  assert.throws(() => normalizeServer('  '), /Enter your SpoolRSS address/);
+  assert.throws(() => normalizeServer('', 'miniflux'), /Enter your Miniflux address/);
+});
+
+test("finds each platform's own web page from the address entered", () => {
+  assert.equal(webAddress('spoolrss', 'https://x.example/rss'), 'https://x.example/rss/');
+  assert.equal(webAddress('greader', 'https://x.example/api/greader.php'), 'https://x.example/');
+  assert.equal(webAddress('fever', 'https://x.example/fever'), 'https://x.example/');
+  assert.equal(webAddress('nextcloud', 'https://cloud.example'), 'https://cloud.example/index.php/apps/news/');
 });
 
 test('formats the badge', () => {
@@ -61,18 +70,37 @@ test('formats the badge', () => {
 });
 
 test('signs in with the app password and reports a wrong one clearly', async () => {
-  await assert.rejects(signIn(SERVER, USER, 'nope'), (err) => err instanceof AuthError && /Wrong username or app password/.test(err.message));
-  await assert.rejects(signIn('http://127.0.0.1:1', USER, PASS), /Can't reach Feedster/);
-  assert.match(await signIn(SERVER, USER, PASS), /^reader\/[0-9a-f]+$/);
+  await assert.rejects(signIn(ACCOUNT, USER, 'nope'), (err) => err instanceof AuthError && /Wrong username or app password/.test(err.message));
+  await assert.rejects(signIn({ platform: 'spoolrss', server: 'http://127.0.0.1:1' }, USER, PASS), /Can't reach SpoolRSS/);
+  assert.match(await signIn(ACCOUNT, USER, PASS), /^reader\/[0-9a-f]+$/);
 });
 
 test('reads the unread count and newest unread articles', async () => {
-  const token = await signIn(SERVER, USER, PASS);
-  const summary = await unreadSummary(SERVER, token);
+  const token = await signIn(ACCOUNT, USER, PASS);
+  const summary = await unreadSummary({ ...ACCOUNT, token });
   assert.equal(summary.count, 3);
   assert.deepEqual(summary.items.map((i) => i.title), ['Story 3', 'Story 2', 'Story 1']);
   assert.equal(summary.items[0].feed, 'Local');
   assert.match(summary.items[0].url, /\/story\/3$/);
+});
+
+test('subscribes to a feed found on a page', async () => {
+  const token = await signIn(ACCOUNT, USER, PASS);
+  const other = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/rss+xml' });
+    res.end(FEED.replace('<title>Local</title>', '<title>Found</title>'));
+  });
+  await new Promise((r) => other.listen(0, '127.0.0.1', r));
+  try {
+    await subscribe({ ...ACCOUNT, token }, `http://127.0.0.1:${other.address().port}/found.xml`);
+    assert.ok((await web('/api/state')).feeds.some((f) => f.title === 'Found'));
+    await assert.rejects(subscribe({ ...ACCOUNT, token }, 'http://127.0.0.1:1/nothing.xml'));
+    // The badge test below expects only the first feed's articles.
+    const found = (await web('/api/state')).feeds.find((f) => f.title === 'Found');
+    await fetch(`${SERVER}/api/feeds/${found.id}`, { method: 'DELETE', headers: { 'X-SpoolRSS': '1' } });
+  } finally {
+    other.close();
+  }
 });
 
 // ---- the background script, with a stand-in browser API
@@ -118,24 +146,24 @@ function fakeBrowser(initial) {
 }
 
 test('the toolbar badge follows the unread count, and asks to sign in again when needed', async () => {
-  const token = await signIn(SERVER, USER, PASS);
+  const token = await signIn(ACCOUNT, USER, PASS);
   const browser = fakeBrowser({ server: SERVER, username: USER, token, interval: 5, granted: [originPattern(SERVER)] });
   await import(`../extension/background.js?${Date.now()}`);
 
   await browser.listeners.installed({ reason: 'install' });
   assert.equal(browser.badge.text, '3');
-  assert.equal(browser.badge.title, 'Feedster: 3 unread');
+  assert.equal(browser.badge.title, 'SpoolRSS: 3 unread');
   assert.equal(browser.badge.alarm, 5);
   assert.equal(browser.badge.openedOptions, true, 'first install opens the setup page');
   assert.equal(browser.store.state.items.length, 3, 'the popup has articles to show');
-  assert.deepEqual(browser.scripts.get('feedster-page')?.matches, [originPattern(SERVER)], "watches the connected Feedster's pages");
-  assert.deepEqual(browser.scripts.get('feedster-page').js, ['feedster-page.js']);
+  assert.deepEqual(browser.scripts.get('spoolrss-page')?.matches, [originPattern(SERVER)], "watches the connected SpoolRSS's pages");
+  assert.deepEqual(browser.scripts.get('spoolrss-page').js, ['spoolrss-page.js']);
   await browser.listeners.startup();
   assert.equal(browser.scripts.size, 1, 'registering again on startup replaces the script');
 
-  // Reading an article in Feedster lowers the count on the next check.
+  // Reading an article in SpoolRSS lowers the count on the next check.
   const article = (await web('/api/articles?view=unread')).items[0];
-  await fetch(`${SERVER}/api/articles/${article.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Feedster': '1' }, body: JSON.stringify({ read: true }) });
+  await fetch(`${SERVER}/api/articles/${article.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-SpoolRSS': '1' }, body: JSON.stringify({ read: true }) });
   await browser.send({ type: 'refresh' });
   assert.equal(browser.badge.text, '2');
 
@@ -149,13 +177,13 @@ test('the toolbar badge follows the unread count, and asks to sign in again when
   // Not connected at all: no badge, and the title says what to do.
   await chrome.storage.local.remove('token');
   await new Promise((r) => setTimeout(r, 10));
-  assert.equal(browser.scripts.size, 0, 'disconnecting stops watching Feedster pages');
+  assert.equal(browser.scripts.size, 0, 'disconnecting stops watching SpoolRSS pages');
   await browser.send({ type: 'refresh' });
   assert.equal(browser.badge.text, '');
-  assert.equal(browser.badge.title, 'Feedster: click to connect');
+  assert.equal(browser.badge.title, 'SpoolRSS: click to connect');
 });
 
-test('Feedster pages ask for a fresh count once changes settle', async () => {
+test('SpoolRSS pages ask for a fresh count once changes settle', async () => {
   const sent = [];
   const page = new EventTarget();
   globalThis.window = page;
@@ -165,15 +193,15 @@ test('Feedster pages ask for a fresh count once changes settle', async () => {
     runtime: { sendMessage: async (m) => { sent.push(m); } },
   };
   try {
-    await import(`../extension/feedster-page.js?${Date.now()}`);
+    await import(`../extension/spoolrss-page.js?${Date.now()}`);
     // Marking several articles read while scrolling
-    for (let i = 0; i < 5; i++) page.dispatchEvent(new Event('feedster:changed'));
+    for (let i = 0; i < 5; i++) page.dispatchEvent(new Event('spoolrss:changed'));
     await new Promise((r) => setTimeout(r, 1300));
     assert.deepEqual(sent, [{ type: 'refresh' }]);
 
     // Another site on the same host (a different sub-path) is ignored.
     globalThis.location = { href: 'http://127.0.0.1:1/other/' };
-    page.dispatchEvent(new Event('feedster:changed'));
+    page.dispatchEvent(new Event('spoolrss:changed'));
     await new Promise((r) => setTimeout(r, 1300));
     assert.equal(sent.length, 1);
   } finally {

@@ -1,5 +1,5 @@
 {
-  "name": "feedster",
+  "name": "spoolrss",
   "version": "1.0.0",
   "description": "Self-hosted RSS/Atom feed reader",
   "main": "src/server.js",

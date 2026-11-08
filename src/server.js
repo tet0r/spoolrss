@@ -14,8 +14,8 @@ import { handleFever } from './fever.js';
 import { handleGReader } from './greader.js';
 
 const PORT = Number(process.env.PORT || 8080);
-const PASSWORD = process.env.FEEDSTER_PASSWORD || '';
-const REFRESH_MINUTES = Number(process.env.FEEDSTER_REFRESH_MINUTES || 15);
+const PASSWORD = process.env.SPOOLRSS_PASSWORD || '';
+const REFRESH_MINUTES = Number(process.env.SPOOLRSS_REFRESH_MINUTES || 15);
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, '..', 'public');
 
@@ -31,7 +31,7 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 if (!getSetting('session_key')) setSetting('session_key', crypto.randomBytes(32).toString('hex'));
 const sessionToken = () => crypto.createHmac('sha256', getSetting('session_key')).update(`session:${PASSWORD}`).digest('hex');
 
-// Headers for Feedster's own pages: no framing by other sites, scripts only from Feedster itself.
+// Headers for SpoolRSS's own pages: no framing by other sites, scripts only from SpoolRSS itself.
 // Article images and media come from anywhere, as in any feed reader.
 const PAGE_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; img-src * data: blob:; media-src *; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
@@ -42,7 +42,9 @@ const HTML = { 'Content-Type': 'text/html; charset=utf-8', ...PAGE_HEADERS };
 
 function authed(req) {
   if (!PASSWORD) return true;
-  const cookie = (req.headers.cookie || '').split(';').map((c) => c.trim().split('=')).find(([k]) => k === 'feedster');
+  // "feedster" is the cookie from before the rename, so nobody is signed out by it.
+  const cookies = (req.headers.cookie || '').split(';').map((c) => c.trim().split('='));
+  const cookie = cookies.find(([k]) => k === 'spoolrss') || cookies.find(([k]) => k === 'feedster');
   const token = cookie?.[1] || '';
   const expected = sessionToken();
   return token.length === expected.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
@@ -53,10 +55,14 @@ async function json(req) {
   return raw ? JSON.parse(raw) : {};
 }
 
-/** Build a WHERE clause for an article scope: { feed, folder, view: all|unread|starred, q } */
+/**
+ * Build a WHERE clause for an article scope: { feed, folder, view: all|unread|starred, q }.
+ * With no feed or folder it's "All articles", which leaves out feeds hidden from it.
+ */
 function scopeWhere({ feed, folder, view, q }) {
   const where = [];
   const params = [];
+  if (!feed && !folder && view !== 'starred') where.push('f.hide_in_all = 0');
   if (feed) { where.push('a.feed_id = ?'); params.push(Number(feed)); }
   if (folder) { where.push('f.folder_id = ?'); params.push(Number(folder)); }
   if (view === 'unread') where.push('a.read = 0');
@@ -74,11 +80,12 @@ function scopeWhere({ feed, folder, view, q }) {
 function state() {
   const folders = db.prepare('SELECT * FROM folders ORDER BY position, name COLLATE NOCASE').all();
   const feeds = db.prepare(`
-    SELECT f.id, f.title, f.url, f.site_url, f.folder_id, f.last_fetched, f.last_error, f.next_fetch_at,
+    SELECT f.id, f.title, f.url, f.site_url, f.folder_id, f.last_fetched, f.last_error, f.next_fetch_at, f.hide_in_all,
       (SELECT COUNT(*) FROM articles a WHERE a.feed_id = f.id AND a.read = 0) AS unread,
       (SELECT checked_at FROM icons i WHERE i.feed_id = f.id AND i.data IS NOT NULL) AS icon
     FROM feeds f ORDER BY f.title COLLATE NOCASE`).all();
-  const totals = db.prepare('SELECT SUM(read = 0) AS unread, SUM(starred = 1) AS starred, COUNT(*) AS total FROM articles').get();
+  const totals = db.prepare(`SELECT SUM(a.read = 0 AND f.hide_in_all = 0) AS unread, SUM(a.starred = 1) AS starred, COUNT(*) AS total
+    FROM articles a JOIN feeds f ON f.id = a.feed_id`).get();
   return {
     folders,
     feeds,
@@ -170,6 +177,7 @@ const routes = [
     const body = await json(req);
     if (body.title) db.prepare('UPDATE feeds SET title = ? WHERE id = ?').run(String(body.title), Number(m[1]));
     if ('folderId' in body) db.prepare('UPDATE feeds SET folder_id = ? WHERE id = ?').run(body.folderId || null, Number(m[1]));
+    if ('hideInAll' in body) db.prepare('UPDATE feeds SET hide_in_all = ? WHERE id = ?').run(body.hideInAll ? 1 : 0, Number(m[1]));
     return { ok: true };
   }],
 
@@ -221,7 +229,7 @@ const routes = [
 
   ['GET', /^\/api\/opml$/, () => [200, exportOpml(), {
     'Content-Type': 'text/x-opml; charset=utf-8',
-    'Content-Disposition': 'attachment; filename="feedster.opml"',
+    'Content-Disposition': 'attachment; filename="spoolrss.opml"',
   }]],
 
   ['POST', /^\/api\/opml$/, async (req) => {
@@ -259,8 +267,8 @@ const escapeAttr = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 const safeNext = (next) => (typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/');
 
 const loginPage = (next = '/', message = '') => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Feedster</title><link rel="stylesheet" href="/style.css">
-<body class="login"><form method="post" action="/login"><h1>Feedster</h1>
+<title>SpoolRSS</title><link rel="stylesheet" href="/style.css">
+<body class="login"><form method="post" action="/login"><h1>SpoolRSS</h1>
 <input type="hidden" name="next" value="${escapeAttr(safeNext(next))}">
 ${message ? `<p class="login-error">${escapeAttr(message)}</p>` : ''}<input type="password" name="password" placeholder="Password" autofocus required><button>Sign in</button></form></body>`;
 
@@ -292,9 +300,9 @@ const server = http.createServer(async (req, res) => {
         return send(res, 401, loginPage(next, 'Wrong password.'), HTML);
       }
       clearFailures(req);
-      // Secure when the browser reached Feedster over HTTPS, directly or through a proxy.
+      // Secure when the browser reached SpoolRSS over HTTPS, directly or through a proxy.
       const https = req.socket.encrypted || /^https$/i.test(String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim());
-      res.writeHead(303, { Location: next, 'Set-Cookie': `feedster=${sessionToken()}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${https ? '; Secure' : ''}` });
+      res.writeHead(303, { Location: next, 'Set-Cookie': `spoolrss=${sessionToken()}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${https ? '; Secure' : ''}` });
       return res.end();
     }
     const subscribe = req.method === 'GET' && subscribeLink(url);
@@ -314,9 +322,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname.startsWith('/api/')) {
-      // Changes need a header that only Feedster's own page sends: another site's form or script
-      // can't add custom headers to a request to Feedster without Feedster's permission (CORS).
-      if (req.method !== 'GET' && req.headers['x-feedster'] !== '1') return send(res, 403, { error: 'Missing X-Feedster header' });
+      // Changes need a header that only SpoolRSS's own page sends: another site's form or script
+      // can't add custom headers to a request to SpoolRSS without SpoolRSS's permission (CORS).
+      // (X-Feedster is the same header from before the rename, sent by pages still open from then.)
+      if (req.method !== 'GET' && req.headers['x-spoolrss'] !== '1' && req.headers['x-feedster'] !== '1') {
+        return send(res, 403, { error: 'Missing X-SpoolRSS header' });
+      }
       for (const [method, pattern, handler] of routes) {
         const m = req.method === method && url.pathname.match(pattern);
         if (!m) continue;
@@ -334,7 +345,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Feedster ${VERSION} listening on http://localhost:${PORT}${PASSWORD ? ' (password protected)' : ''}`);
+  console.log(`SpoolRSS ${VERSION} listening on http://localhost:${PORT}${PASSWORD ? ' (password protected)' : ''}`);
 });
 
 startUpdateChecker();

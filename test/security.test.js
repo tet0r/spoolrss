@@ -52,7 +52,7 @@ test('drops article and site links that are not web addresses', () => {
   assert.equal(feed.items.find((i) => i.title === 'Good').url, 'https://example.com/post');
 });
 
-// ---- a password-protected Feedster
+// ---- a password-protected SpoolRSS
 
 const PORT = 19900 + Math.floor(Math.random() * 90);
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -68,16 +68,16 @@ const signIn = (password, headers = {}) => fetch(`${BASE}/login`, {
 });
 
 before(async () => {
-  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedster-sec-'));
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spoolrss-sec-'));
   app = spawn(process.execPath, ['src/server.js'], {
-    env: { ...process.env, PORT: String(PORT), FEEDSTER_DATA: dataDir, FEEDSTER_REFRESH_MINUTES: '0', UPDATE_CHECK: 'false', FEEDSTER_PASSWORD: PASSWORD },
+    env: { ...process.env, PORT: String(PORT), SPOOLRSS_DATA: dataDir, SPOOLRSS_REFRESH_MINUTES: '0', UPDATE_CHECK: 'false', SPOOLRSS_PASSWORD: PASSWORD },
     stdio: 'ignore',
   });
   let up = false;
   for (let i = 0; i < 200 && !up; i++) {
     try { up = (await fetch(`${BASE}/style.css`)).ok; } catch { await new Promise((r) => setTimeout(r, 100)); }
   }
-  if (!up) throw new Error('Feedster did not start');
+  if (!up) throw new Error('SpoolRSS did not start');
 });
 
 after(async () => {
@@ -104,7 +104,7 @@ test('signs in with a cookie that is Secure behind an HTTPS proxy, and changes n
   const session = cookie.split(';')[0];
   const make = (headers) => fetch(`${BASE}/api/folders`, { method: 'POST', headers: { Cookie: session, 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ name: 'News' }) });
   assert.equal((await make({})).status, 403, 'a cross-site form could send this');
-  assert.equal((await make({ 'X-Feedster': '1' })).status, 200);
+  assert.equal((await make({ 'X-SpoolRSS': '1' })).status, 200);
   assert.equal((await fetch(`${BASE}/api/state`, { headers: { Cookie: session } })).status, 200);
 });
 

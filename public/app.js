@@ -1,12 +1,16 @@
-// Feedster front end: sidebar of folders/feeds, article list, reader pane.
+// SpoolRSS front end: sidebar of folders/feeds, article list, reader pane.
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const store = {
   get(key, fallback) {
-    try { const v = localStorage.getItem(`feedster:${key}`); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
+    try {
+      // feedster: is where preferences were kept before the rename.
+      const v = localStorage.getItem(`spoolrss:${key}`) ?? localStorage.getItem(`feedster:${key}`);
+      return v == null ? fallback : JSON.parse(v);
+    } catch { return fallback; }
   },
   set(key, value) {
-    try { localStorage.setItem(`feedster:${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ }
+    try { localStorage.setItem(`spoolrss:${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ }
   },
 };
 
@@ -16,7 +20,7 @@ const S = {
   totals: { unread: 0, starred: 0 },
   scope: store.get('scope', { type: 'all' }),
   view: store.get('view', 'unread'),
-  layout: store.get('layout', 'list'),
+  layout: store.get('layout', 'classic'),
   theme: store.get('theme', 'auto'),
   oldestFirst: store.get('oldestFirst', false),
   markOnScroll: store.get('markOnScroll', false),
@@ -35,13 +39,17 @@ const S = {
 /** Links from feeds, if they are web addresses. Older articles may hold anything, such as javascript: links. */
 const webUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '');
 
-// Tells the browser extension, if installed, that unread counts may have changed.
-const announceChange = () => window.dispatchEvent(new Event('feedster:changed'));
+// Tells the browser extension, if installed, that unread counts may have changed. Extension
+// versions from before the rename listen for feedster:changed.
+const announceChange = () => {
+  window.dispatchEvent(new Event('spoolrss:changed'));
+  window.dispatchEvent(new Event('feedster:changed'));
+};
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     ...opts,
-    headers: { 'X-Feedster': '1', ...(opts.body && typeof opts.body === 'string' && !opts.raw && { 'Content-Type': 'application/json' }) },
+    headers: { 'X-SpoolRSS': '1', ...(opts.body && typeof opts.body === 'string' && !opts.raw && { 'Content-Type': 'application/json' }) },
   });
   if (res.status === 401) { location.reload(); throw new Error('Signed out'); }
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
@@ -154,7 +162,7 @@ async function loadState() {
 // Shows the running version, and a banner when a newer release exists (until dismissed for that version)
 function showVersion(s) {
   const release = webUrl(s.update?.url) ? `<a href="${esc(s.update.url)}" target="_blank" rel="noopener noreferrer">` : '';
-  $('#version').innerHTML = `Feedster ${esc(s.version === 'dev' ? '(development build)' : `v${s.version}`)}`
+  $('#version').innerHTML = `SpoolRSS ${esc(s.version === 'dev' ? '(development build)' : `v${s.version}`)}`
     + (s.update ? ` · ${release || '<span>'}<span class="new">v${esc(s.update.version)} available</span>${release ? '</a>' : '</span>'}` : '');
   const banner = $('#update');
   banner.hidden = !s.update || store.get('update-dismissed', null) === s.update.version;
@@ -180,13 +188,13 @@ function navItem({ cls = '', icon, label, count, scope, menu = '', attrs = '' })
 
 function renderNav() {
   const feedRow = (f) => navItem({
-    cls: f.last_error ? 'error' : '',
+    cls: `${f.last_error ? 'error' : ''} ${f.hide_in_all ? 'hidden-in-all' : ''}`,
     icon: favicon(f),
     label: f.title,
     count: f.unread,
     scope: { type: 'feed', id: f.id },
     menu: JSON.stringify({ type: 'feed', id: f.id }),
-    attrs: `draggable="true" data-feed="${f.id}" title="${esc(f.last_error ? `Error: ${f.last_error}` : f.title)}"`,
+    attrs: `draggable="true" data-feed="${f.id}" title="${esc(f.last_error ? `Error: ${f.last_error}` : `${f.title}${f.hide_in_all ? ' (hidden from All articles)' : ''}`)}"`,
   });
 
   let html = navItem({ icon: '<span class="glyph">☰</span>', label: 'All articles', count: S.totals.unread, scope: { type: 'all' } });
@@ -210,7 +218,7 @@ function renderNav() {
   if (!S.feeds.length) html += `<p class="muted" style="padding:4px 8px">No subscriptions yet.</p>`;
 
   $('#nav').innerHTML = html;
-  document.title = S.totals.unread ? `(${S.totals.unread}) Feedster` : 'Feedster';
+  document.title = S.totals.unread ? `(${S.totals.unread}) SpoolRSS` : 'SpoolRSS';
 }
 
 function renderHeader() {
@@ -319,6 +327,7 @@ function openEntityMenu({ type, id }, rect) {
       } },
     );
     if (webUrl(feed.site_url)) items.push({ text: 'Open website', run: () => window.open(feed.site_url, '_blank', 'noopener') });
+    items.push({ text: `${feed.hide_in_all ? '✓ ' : ''}Hide from All articles`, run: () => setHiddenInAll(feed, !feed.hide_in_all) });
     items.push('-', { label: 'Move to' });
     items.push({ text: `${feed.folder_id ? '' : '✓ '}No folder`, run: () => moveFeed(id, null) });
     for (const f of S.folders) items.push({ text: `${feed.folder_id === f.id ? '✓ ' : ''}${f.name}`, run: () => moveFeed(id, f.id) });
@@ -444,7 +453,7 @@ function itemHtml(a, i) {
 function listFooter() {
   if (S.cursor) return '<div class="list-end">Loading…</div>';
   if (!S.items.length) {
-    if (!S.feeds.length) return `<div class="list-empty"><strong>Welcome to Feedster</strong>Add a subscription or import an OPML file from Settings to get started.</div>`;
+    if (!S.feeds.length) return `<div class="list-empty"><strong>Welcome to SpoolRSS</strong>Add a subscription or import an OPML file from Settings to get started.</div>`;
     if (S.q) return `<div class="list-empty"><strong>No matches</strong>Nothing matches “${esc(S.q)}”.</div>`;
     if (S.scope.type === 'starred') return `<div class="list-empty"><strong>No starred articles</strong>Press <kbd>s</kbd> on an article to star it.</div>`;
     return `<div class="list-empty"><strong>All caught up</strong>${S.view === 'unread' ? 'No unread articles here.' : 'No articles yet.'}</div>`;
@@ -777,7 +786,7 @@ function refreshReaderButtons() {
 function adjustUnread(feedId, delta) {
   const feed = feedById(feedId);
   if (feed) feed.unread = Math.max(0, feed.unread + delta);
-  S.totals.unread = Math.max(0, S.totals.unread + delta);
+  if (!feed?.hide_in_all) S.totals.unread = Math.max(0, S.totals.unread + delta);
   renderNav();
   renderHeader();
 }
@@ -814,6 +823,13 @@ function openOriginal(i) {
   if (!webUrl(a?.url)) return;
   setRead(i, true);
   window.open(a.url, '_blank', 'noopener');
+}
+
+/** Keep a feed's articles out of "All articles" (and its count), or bring them back. */
+async function setHiddenInAll(feed, hide) {
+  await patch(`/api/feeds/${feed.id}`, { hideInAll: hide });
+  toast(hide ? `“${feed.title}” is hidden from All articles` : `“${feed.title}” is back in All articles`);
+  await reloadAll({ keepSelection: true });
 }
 
 async function markAllRead(filter = scopeFilter()) {
@@ -1005,7 +1021,7 @@ async function saveSync(body) {
 
 $('#syncSave').addEventListener('click', () => saveSync({ username: $('#syncUser').value, password: $('#syncPass').value }));
 $('#syncOff').addEventListener('click', () => {
-  if (confirm('Turn off app sync? Every app signed in to Feedster will be signed out.')) saveSync({});
+  if (confirm('Turn off app sync? Every app signed in to SpoolRSS will be signed out.')) saveSync({});
 });
 
 $('#oldestFirst').addEventListener('change', (e) => setOldestFirst(e.target.checked));

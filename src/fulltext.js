@@ -6,7 +6,7 @@ import { isPrivateHost, readHead, isBlocked, fetchChecked } from './net.js';
 // Many feeds carry only a summary. This fetches the article's page and pulls out the main
 // text with Readability (the engine behind Firefox's Reader View), once per article.
 
-const USER_AGENT = 'Feedster/1.0 (+self-hosted feed reader)';
+const USER_AGENT = 'SpoolRSS/1.0 (+self-hosted feed reader)';
 const MAX_PAGE_BYTES = 3 * 1024 * 1024;
 const MIN_TEXT_CHARS = 250;
 // A failure is often temporary (timeout, outage), so try again after a while.
@@ -47,7 +47,7 @@ async function fetchPage(url, allowPrivate) {
     headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' },
     signal: AbortSignal.timeout(20_000),
   }, allowPrivate);
-  if (isBlocked(res)) throw new Error("the site asked for a browser check, which Feedster can't complete");
+  if (isBlocked(res)) throw new Error("the site asked for a browser check, which SpoolRSS can't complete");
   if (res.status === 401 || res.status === 403 || res.status === 429) throw new Error(`the site refused the request (HTTP ${res.status})`);
   if (!res.ok) throw new Error(`the site returned HTTP ${res.status}`);
   const type = res.headers.get('content-type') || '';
