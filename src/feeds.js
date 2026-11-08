@@ -306,17 +306,20 @@ export async function discover(inputUrl) {
 }
 
 const insertArticle = db.prepare(`
-  INSERT INTO articles (feed_id, guid, url, title, author, content, image, published, fetched_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO articles (feed_id, guid, url, title, author, content, image, published, fetched_at, in_feed)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   ON CONFLICT (feed_id, guid) DO UPDATE SET
-    title = excluded.title, content = excluded.content, url = excluded.url, image = excluded.image
+    title = excluded.title, content = excluded.content, url = excluded.url, image = excluded.image, in_feed = 1
 `);
+const leftFeed = db.prepare('UPDATE articles SET in_feed = 0 WHERE feed_id = ? AND in_feed = 1');
 const articleExists = db.prepare('SELECT 1 FROM articles WHERE feed_id = ? AND guid = ?');
 
 function storeItems(feedId, items, { markRead = false } = {}) {
   const now = Date.now();
   let added = 0;
   tx(() => {
+    // Only what this fetch lists counts as still in the feed.
+    leftFeed.run(feedId);
     // Items without dates keep their feed order by spacing them out by a millisecond.
     items.forEach((item, idx) => {
       if (!item.guid) return;
@@ -446,11 +449,14 @@ function cleanStoredTitles() {
 }
 cleanStoredTitles();
 
-/** Drop read, unstarred articles past the retention window. */
-function pruneOld() {
+/**
+ * Drop read, unstarred articles past the retention window, once their feed no longer lists them.
+ * (Some feeds keep old posts for months; deleting those would make them come back unread.)
+ */
+export function pruneOld() {
   const days = Number(process.env.SPOOLRSS_RETENTION_DAYS || 90);
   if (!days) return;
-  db.prepare('DELETE FROM articles WHERE read = 1 AND starred = 0 AND published < ?').run(Date.now() - days * 86_400_000);
+  db.prepare('DELETE FROM articles WHERE read = 1 AND starred = 0 AND in_feed = 0 AND published < ?').run(Date.now() - days * 86_400_000);
 }
 
 // ---- OPML ----

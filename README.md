@@ -101,7 +101,7 @@ Set these as environment variables:
 | --- | --- | --- |
 | `SPOOLRSS_PASSWORD` | none | Requires sign-in. Set it if SpoolRSS can be reached from the internet. |
 | `SPOOLRSS_REFRESH_MINUTES` | `15` | How often feeds are checked. `0` turns it off. |
-| `SPOOLRSS_RETENTION_DAYS` | `90` | Read articles older than this are deleted, except starred ones. `0` keeps everything. |
+| `SPOOLRSS_RETENTION_DAYS` | `90` | Read articles older than this are deleted, except starred ones and ones their feed still lists. `0` keeps everything. |
 | `UPDATE_CHECK` | `true` | Checks GitHub for new versions. `false` turns it off. |
 | `PORT` | `8080` | The port SpoolRSS listens on |
 | `SPOOLRSS_DATA` | `./data` | Where the database is stored |

@@ -4,6 +4,12 @@ All notable changes to SpoolRSS (called Feedster before 2.0.0) are listed here, 
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-11-08
+
+### Fixed
+
+- Old articles no longer come back unread. Read articles past the retention window (90 days by default) were deleted even when their feed still listed them, so the next refresh added them again as new. Articles are now kept for as long as their feed lists them. Ones already deleted come back unread one last time.
+
 ## [2.0.1] - 2026-11-08
 
 ### Changed

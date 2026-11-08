@@ -100,6 +100,10 @@ addColumn('feeds', 'next_fetch_at', 'INTEGER');
 // 1 keeps the feed's articles out of "All articles" and its unread count (still shown in the
 // feed itself, its folder and reading apps).
 addColumn('feeds', 'hide_in_all', 'INTEGER NOT NULL DEFAULT 0');
+// 1 while the article is still listed in its feed (as of the last full fetch). Those are never
+// pruned: deleting one would bring it back as a new, unread article on the next refresh. Existing
+// articles start as listed, until their feed next sends its full contents.
+addColumn('articles', 'in_feed', 'INTEGER NOT NULL DEFAULT 1');
 
 export function getSetting(key) {
   return db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value ?? null;
