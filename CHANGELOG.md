@@ -4,6 +4,12 @@ All notable changes to SpoolRSS (called Feedster before 2.0.0) are listed here, 
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-08
+
+### Changed
+
+- The browser extension's store description and screenshots describe it as working with SpoolRSS and other self-hosted feed readers, instead of listing them by name, which the Chrome Web Store counts as keyword spam. The supported readers are unchanged and listed in its settings.
+
 ## [2.0.0] - 2026-11-08
 
 Feedster is now **SpoolRSS**. Existing installs carry on with their data, settings and sign-ins; see [Updating from Feedster](https://github.com/tet0r/spoolrss#updating-from-feedster).

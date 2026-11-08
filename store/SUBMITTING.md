@@ -22,7 +22,7 @@ For the first submission, use **`spoolrss-firefox.zip`** for Firefox and **`spoo
 | --- | --- |
 | Name | `SpoolRSS` |
 | Add-on URL | `spoolrss` (if it's taken, `spoolrss-reader`) |
-| Summary | Your unread count from SpoolRSS, FreshRSS, Miniflux, Tiny Tiny RSS or Nextcloud News in the toolbar, and one-click subscribe to the feeds on any page. |
+| Summary | Your feed reader's unread count in the toolbar, and one-click subscribe to the feeds on any page. Works with SpoolRSS and other self-hosted readers. |
 | Description | The [description](#description) below |
 | Categories | **Feeds, News & Blogging** |
 | Support email / website | `https://github.com/tet0r/spoolrss/issues` |
@@ -122,10 +122,12 @@ Two cases need the store's dashboard instead:
 
 ## Text to paste
 
+The Chrome Web Store treats a list of other products' names in the listing (description, screenshots or the extension's own description) as keyword spam and rejects it. Keep those generic, as below; naming the supported readers is fine in the notes for reviewers.
+
 ### Description
 
 ```
-Connect your browser to your own feed reader: SpoolRSS, FreshRSS, Miniflux, Tiny Tiny RSS, Nextcloud News, or any reader with a Google Reader or Fever API.
+Connect your browser to your own feed reader: SpoolRSS or another self-hosted reader. Choose yours in the extension's settings.
 
 • Your unread count on the toolbar icon, checked every 1 to 60 minutes
 • Click the icon to see your newest unread headlines
