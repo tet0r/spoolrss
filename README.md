@@ -10,7 +10,10 @@ A feed reader you run yourself, for RSS, Atom and JSON Feed. It works in any bro
 
 Download **SpoolRSS-windows.zip** from the [latest release](https://github.com/tet0r/spoolrss/releases/latest), unzip it into your user folder (Documents, for example), and run **SpoolRSS.exe**. Nothing is installed.
 
-SpoolRSS runs in the tray by the clock: click its icon to open it in your browser. Right-click the icon to start it with Windows or run it as a Windows service. New versions install from within the app with **Update now**.
+SpoolRSS runs in the tray by the clock: click its icon to open it in your browser. Right-click the icon for its settings (port, network access, password), to start it with Windows or run it as a Windows service, or to restart or exit it. New versions install from within the app with **Update now**.
+
+<img src="docs/windows-tray.png" width="440" alt="SpoolRSS's tray menu above the Windows taskbar: Open SpoolRSS, Settings, Start with Windows, Run as a Windows service, Open the SpoolRSS folder, Restart and Exit"> <img src="docs/windows-settings.png" width="555" alt="The SpoolRSS settings window: port, a checkbox to let other devices on the network connect, password, how often to check feeds, how long to keep read articles, and whether to be told about new versions">
+
 
 If SmartScreen warns about SpoolRSS.exe, choose **More info**, then **Run anyway**: it isn't code-signed.
 

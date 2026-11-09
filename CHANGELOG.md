@@ -4,6 +4,12 @@ All notable changes to SpoolRSS (called Feedster before 2.0.0) are listed here, 
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-11-08
+
+### Added
+
+- The Windows app's tray menu has **Settings…** (port, network access, password, how often feeds are checked, how long read articles are kept), **Restart** and **Exit** (which replaces Quit). The README shows the menu and the settings window.
+
 ## [2.1.0] - 2026-11-08
 
 ### Added

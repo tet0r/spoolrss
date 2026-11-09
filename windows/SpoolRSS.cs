@@ -49,8 +49,8 @@ static class Paths
 static class Settings
 {
     const string Defaults =
-        "# SpoolRSS settings. After changing them, quit SpoolRSS from its tray icon and start it again\r\n" +
-        "# (or restart the SpoolRSS service, if it runs as one).\r\n" +
+        "# SpoolRSS settings. The tray icon's Settings changes the common ones. After editing this file,\r\n" +
+        "# choose Restart from the tray icon.\r\n" +
         "\r\n" +
         "# 127.0.0.1 keeps SpoolRSS on this computer. Use 0.0.0.0 to let other devices on your network,\r\n" +
         "# like a phone app, reach it; then also set a password below.\r\n" +
@@ -102,6 +102,168 @@ static class Settings
     }
 
     public static string Url() { return "http://localhost:" + Port() + "/"; }
+
+    /// <summary>
+    /// settings.txt with these values set, keeping its comments and other lines. A value that is
+    /// already there (or commented out, as in the defaults) is replaced in place; an empty value
+    /// comments the line out again.
+    /// </summary>
+    public static string With(Dictionary<string, string> changes)
+    {
+        Load(); // creates the file with its defaults if it's missing
+        var lines = new List<string>();
+        try { lines.AddRange(File.ReadAllLines(Paths.Settings)); } catch (Exception) { }
+        var done = new HashSet<string>();
+        var result = new List<string>();
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim().TrimStart('#').Trim();
+            int eq = line.IndexOf('=');
+            string key = eq > 0 ? line.Substring(0, eq).Trim().ToUpperInvariant() : null;
+            if (key == null || !changes.ContainsKey(key)) { result.Add(raw); continue; }
+            if (done.Contains(key)) continue; // one line per setting
+            done.Add(key);
+            result.Add(Line(key, changes[key]));
+        }
+        foreach (var pair in changes)
+            if (!done.Contains(pair.Key)) result.Add(Line(pair.Key, pair.Value));
+        return string.Join("\r\n", result) + "\r\n";
+    }
+
+    static string Line(string key, string value)
+    {
+        value = (value ?? "").Replace("\r", "").Replace("\n", "").Trim();
+        return value.Length == 0 ? "# " + key + "=" : key + "=" + value;
+    }
+}
+
+/// <summary>The tray menu's Settings window: the few settings people change, written to settings.txt.</summary>
+class SettingsForm : Form
+{
+    readonly NumericUpDown port = new NumericUpDown();
+    readonly CheckBox network = new CheckBox();
+    readonly TextBox password = new TextBox();
+    readonly NumericUpDown refresh = new NumericUpDown();
+    readonly NumericUpDown retention = new NumericUpDown();
+    readonly CheckBox updates = new CheckBox();
+    readonly Label warning = new Label();
+
+    public Dictionary<string, string> Values { get; private set; }
+
+    public SettingsForm()
+    {
+        var current = Settings.Load();
+        Text = "SpoolRSS settings";
+        Icon = AppIcon.Small();
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Font = SystemFonts.MessageBoxFont;
+        Padding = new Padding(12);
+
+        var grid = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Dock = DockStyle.Fill };
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        port.Minimum = 1; port.Maximum = 65535; port.Width = 90;
+        port.Value = Number(current, "PORT", 8080, 1, 65535);
+        Row(grid, "Port", port, null);
+
+        network.Text = "Let other devices on my network connect (for phone apps)";
+        network.AutoSize = true;
+        string host;
+        network.Checked = current.TryGetValue("HOST", out host) && host != "127.0.0.1" && host != "localhost" && host != "::1";
+        Row(grid, "", network, null);
+
+        password.UseSystemPasswordChar = true; password.Width = 220;
+        string pw;
+        password.Text = current.TryGetValue("SPOOLRSS_PASSWORD", out pw) ? pw : "";
+        Row(grid, "Password", password, "Empty: no sign-in");
+
+        refresh.Minimum = 0; refresh.Maximum = 1440; refresh.Width = 90;
+        refresh.Value = Number(current, "SPOOLRSS_REFRESH_MINUTES", 15, 0, 1440);
+        Row(grid, "Check feeds every", refresh, "minutes (0: only when you refresh)");
+
+        retention.Minimum = 0; retention.Maximum = 36500; retention.Width = 90;
+        retention.Value = Number(current, "SPOOLRSS_RETENTION_DAYS", 90, 0, 36500);
+        Row(grid, "Keep read articles for", retention, "days (0: forever)");
+
+        updates.Text = "Tell me when a new version is out";
+        updates.AutoSize = true;
+        string check;
+        updates.Checked = !current.TryGetValue("UPDATE_CHECK", out check) || check.ToLowerInvariant() == "true" || check == "1" || check.ToLowerInvariant() == "yes";
+        Row(grid, "", updates, null);
+
+        warning.AutoSize = true;
+        warning.MaximumSize = new Size(420, 0);
+        warning.ForeColor = Color.Firebrick;
+        warning.Text = "Anyone on your network can then use SpoolRSS. Set a password.";
+        grid.Controls.Add(warning, 1, grid.RowCount);
+        grid.RowCount++;
+        network.CheckedChanged += delegate { UpdateWarning(); };
+        password.TextChanged += delegate { UpdateWarning(); };
+        UpdateWarning();
+
+        var more = new LinkLabel { Text = "More settings in settings.txt", AutoSize = true, Margin = new Padding(3, 10, 3, 3) };
+        more.LinkClicked += delegate { try { Process.Start(new ProcessStartInfo("notepad.exe", "\"" + Paths.Settings + "\"")); } catch (Exception) { } };
+        grid.Controls.Add(more, 1, grid.RowCount);
+        grid.RowCount++;
+
+        var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 12, 0, 0) };
+        var save = new Button { Text = "Save and restart", AutoSize = true, DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
+        buttons.Controls.Add(cancel);
+        buttons.Controls.Add(save);
+        grid.Controls.Add(buttons, 0, grid.RowCount);
+        grid.SetColumnSpan(buttons, 2);
+        grid.RowCount++;
+
+        AcceptButton = save;
+        CancelButton = cancel;
+        Controls.Add(grid);
+        FormClosing += delegate(object s, FormClosingEventArgs e)
+        {
+            if (DialogResult != DialogResult.OK) return;
+            Values = new Dictionary<string, string>();
+            Values["PORT"] = ((int)port.Value).ToString();
+            Values["HOST"] = network.Checked ? "0.0.0.0" : "127.0.0.1";
+            Values["SPOOLRSS_PASSWORD"] = password.Text;
+            Values["SPOOLRSS_REFRESH_MINUTES"] = ((int)refresh.Value).ToString();
+            Values["SPOOLRSS_RETENTION_DAYS"] = ((int)retention.Value).ToString();
+            Values["UPDATE_CHECK"] = updates.Checked ? "true" : "false";
+        };
+    }
+
+    void UpdateWarning() { warning.Visible = network.Checked && password.Text.Length == 0; }
+
+    static decimal Number(Dictionary<string, string> values, string key, int fallback, int min, int max)
+    {
+        string text;
+        int n;
+        if (!values.TryGetValue(key, out text) || !int.TryParse(text, out n)) n = fallback;
+        return Math.Max(min, Math.Min(max, n));
+    }
+
+    static void Row(TableLayoutPanel grid, string label, Control control, string note)
+    {
+        int row = grid.RowCount++;
+        grid.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 7, 10, 3) }, 0, row);
+        if (note == null)
+        {
+            control.Margin = new Padding(3, 5, 3, 3);
+            grid.Controls.Add(control, 1, row);
+            return;
+        }
+        var line = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        control.Margin = new Padding(3, 4, 6, 3);
+        line.Controls.Add(control);
+        line.Controls.Add(new Label { Text = note, AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(0, 7, 3, 3) });
+        grid.Controls.Add(line, 1, row);
+    }
 }
 
 /// <summary>Kills node.exe when this process ends, however it ends.</summary>
@@ -711,6 +873,50 @@ static class Service
         return 0;
     }
 
+    /// <summary>Restarts the service (elevated), for example to load new settings.</summary>
+    public static int Restart()
+    {
+        var s = Find();
+        if (s == null) return 0;
+        try
+        {
+            if (s.Status != ServiceControllerStatus.Stopped)
+            {
+                s.Stop();
+                s.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
+            }
+            s.Start();
+            s.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Server.Write("Couldn't restart the service: " + ex.Message);
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Saves settings the tray icon prepared into settings.txt (elevated: while SpoolRSS is a service
+    /// only administrators can change its folder), then restarts the service. The server still only
+    /// takes SpoolRSS's own settings from the file.
+    /// </summary>
+    public static int ApplySettings(string file)
+    {
+        try
+        {
+            if (file == null || !File.Exists(file) || new FileInfo(file).Length > 64 * 1024) return 2;
+            File.WriteAllText(Paths.Settings, File.ReadAllText(file));
+            try { File.Delete(file); } catch (Exception) { }
+        }
+        catch (Exception ex)
+        {
+            Server.Write("Couldn't save the settings: " + ex.Message);
+            return 1;
+        }
+        return Restart();
+    }
+
     /// <summary>Runs this exe elevated; Windows asks for administrator permission.</summary>
     public static bool RunElevated(string argument)
     {
@@ -802,11 +1008,13 @@ class Tray : ApplicationContext
         menu.Items.Add(open);
         menu.Items.Add(updateItem);
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(new ToolStripMenuItem("Settings…", null, delegate { ShowSettings(); }));
         menu.Items.Add(autostartItem);
         menu.Items.Add(serviceItem);
         menu.Items.Add(new ToolStripMenuItem("Open the SpoolRSS folder", null, delegate { Shell(Paths.Root); }));
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("Quit", null, delegate { Quit(); }));
+        menu.Items.Add(new ToolStripMenuItem("Restart", null, delegate { Restart(null); }));
+        menu.Items.Add(new ToolStripMenuItem("Exit", null, delegate { Quit(); }));
         menu.Opening += delegate { UpdateMenu(); };
 
         icon.Icon = AppIcon.Small();
@@ -920,7 +1128,7 @@ class Tray : ApplicationContext
         }
         else
         {
-            if (!Confirm("Run SpoolRSS as a Windows service?\n\nIt then starts when Windows starts, even before anyone signs in, and keeps running when you quit this tray icon.\n\nFor safety, only administrators can change the SpoolRSS folder while it's a service (so edit settings.txt as an administrator, and keep the folder where it is). Turning this off gives the folder back.\n\nWindows asks for administrator permission next."))
+            if (!Confirm("Run SpoolRSS as a Windows service?\n\nIt then starts when Windows starts, even before anyone signs in, and keeps running when you exit this tray icon.\n\nFor safety, only administrators can change the SpoolRSS folder while it's a service (so Settings and Restart ask for administrator permission, and the folder should stay where it is). Turning this off gives the folder back.\n\nWindows asks for administrator permission next."))
                 return;
             server.Stop();
             if (Service.RunElevated("--install-service"))
@@ -936,6 +1144,50 @@ class Tray : ApplicationContext
             }
         }
         UpdateMenu();
+    }
+
+    SettingsForm settingsForm;
+
+    void ShowSettings()
+    {
+        if (settingsForm != null) { settingsForm.Activate(); return; }
+        using (settingsForm = new SettingsForm())
+        {
+            var result = settingsForm.ShowDialog();
+            var values = settingsForm.Values;
+            settingsForm = null;
+            if (result != DialogResult.OK || values == null) return;
+            var text = Settings.With(values);
+            if (Service.Installed)
+            {
+                // The folder is administrators' while SpoolRSS is a service: save through an elevated copy.
+                var file = Path.Combine(Path.GetTempPath(), "spoolrss-settings-" + Guid.NewGuid().ToString("N") + ".txt");
+                File.WriteAllText(file, text);
+                bool ok = Service.RunElevated("--apply-settings \"" + file + "\"");
+                try { File.Delete(file); } catch (Exception) { }
+                if (ok) Notify("Settings saved. SpoolRSS restarted at " + Settings.Url(), ToolTipIcon.Info);
+                else Notify("The settings weren't saved.", ToolTipIcon.Warning);
+                return;
+            }
+            try { File.WriteAllText(Paths.Settings, text); }
+            catch (Exception ex) { Notify("Couldn't save the settings: " + ex.Message, ToolTipIcon.Error); return; }
+            Restart("Settings saved. SpoolRSS restarted at " + Settings.Url());
+        }
+    }
+
+    /// <summary>Restarts the server (or, when SpoolRSS is a service, the service).</summary>
+    void Restart(string message)
+    {
+        if (updating) return;
+        if (Service.Installed)
+        {
+            if (Service.RunElevated("--restart-service")) Notify(message ?? "SpoolRSS restarted.", ToolTipIcon.Info);
+            else Notify("SpoolRSS wasn't restarted.", ToolTipIcon.Warning);
+            return;
+        }
+        server.Stop();
+        server.Start();
+        Notify(message ?? "SpoolRSS restarted.", ToolTipIcon.Info);
     }
 
     static bool Confirm(string text)
@@ -986,6 +1238,8 @@ static class Program
         }
         if (mode == "--install-service") return Service.Install(arg);
         if (mode == "--remove-service") return Service.Remove(arg);
+        if (mode == "--restart-service") return Service.Restart();
+        if (mode == "--apply-settings") return Service.ApplySettings(arg);
 
         bool updated = Array.IndexOf(args, "--updated") >= 0;
         // One tray icon per SpoolRSS folder; starting it again just opens SpoolRSS.
