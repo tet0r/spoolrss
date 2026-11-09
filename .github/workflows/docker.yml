@@ -20,6 +20,9 @@ jobs:
     permissions:
       contents: write  # to create the release
       packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      released: ${{ steps.release.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -217,3 +220,57 @@ jobs:
             node scripts/annotate-error.mjs "Chrome Web Store" < cws.log
             exit "$status"
           fi
+
+  # The portable Windows app (windows/). Built on Windows, which has the C# compiler it needs, and
+  # attached to the release that the build job just created. Running copies offer it as an update.
+  windows:
+    needs: build
+    # Also when only a store upload failed after the release was made.
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.outputs.released == 'true') }}
+    runs-on: windows-latest
+    permissions:
+      contents: write  # to attach the zip to the release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build the Windows app
+        run: |
+          npm ci --omit=dev
+          node windows/build.mjs
+
+      # Starts the packaged server the way SpoolRSS.exe does, and checks it answers.
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'smoke'
+          Expand-Archive dist/SpoolRSS-windows.zip $dir
+          $app = Join-Path $dir 'SpoolRSS/app'
+          if (-not (Test-Path (Join-Path $dir 'SpoolRSS/SpoolRSS.exe'))) { throw 'SpoolRSS.exe is missing' }
+          $env:SPOOLRSS_DATA = Join-Path $dir 'data'; $env:HOST = '127.0.0.1'; $env:SPOOLRSS_INSTALL = 'windows'; $env:UPDATE_CHECK = 'false'
+          $server = Start-Process (Join-Path $app 'node.exe') -ArgumentList (Join-Path $app 'src/server.js') -WorkingDirectory $app -PassThru -NoNewWindow
+          $state = $null
+          for ($i = 0; $i -lt 30 -and -not $state; $i++) { try { $state = Invoke-RestMethod http://127.0.0.1:8080/api/state } catch { Start-Sleep 1 } }
+          Stop-Process $server
+          if ($state.install -ne 'windows') { throw 'The packaged server did not start' }
+          "SpoolRSS $($state.version) started from the Windows package"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpoolRSS-windows
+          path: dist/SpoolRSS-windows.zip*
+
+      # The checksum goes up first: running copies offer the update once the zip is there.
+      - name: Attach to the release
+        if: needs.build.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          tag="v${{ needs.build.outputs.version }}"
+          gh release upload "$tag" dist/SpoolRSS-windows.zip.sha256 --clobber
+          gh release upload "$tag" dist/SpoolRSS-windows.zip --clobber

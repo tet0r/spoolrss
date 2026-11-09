@@ -4,6 +4,18 @@ All notable changes to SpoolRSS (called Feedster before 2.0.0) are listed here, 
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-08
+
+### Added
+
+- **SpoolRSS for Windows**: a portable app, nothing to install. Unzip it and run SpoolRSS.exe; it runs in the tray and opens in your browser, and the browser extension connects to it. It can start with Windows or run as a Windows service, and it updates itself from within SpoolRSS (**Update now**). Download SpoolRSS-windows.zip from the release.
+- The `HOST` setting chooses the address SpoolRSS listens on. Listening on `127.0.0.1` only, SpoolRSS also refuses requests addressed to other hostnames, so a web page can't reach it through DNS rebinding.
+
+### Changed
+
+- Refresh, Mark all read and More are now labelled buttons, centered above the article list, with Mark all read highlighted.
+- A shorter README, with just what you need to install and use SpoolRSS.
+
 ## [2.0.2] - 2026-11-08
 
 ### Fixed

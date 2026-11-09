@@ -165,6 +165,7 @@ function showVersion(s) {
   $('#version').innerHTML = `SpoolRSS ${esc(s.version === 'dev' ? '(development build)' : `v${s.version}`)}`
     + (s.update ? ` · ${release || '<span>'}<span class="new">v${esc(s.update.version)} available</span>${release ? '</a>' : '</span>'}` : '');
   const banner = $('#update');
+  if (s.install === 'windows') return showWindowsUpdate(s, banner, release);
   banner.hidden = !s.update || store.get('update-dismissed', null) === s.update.version;
   if (banner.hidden) return;
   banner.innerHTML = `<span><b>Version ${esc(s.update.version)} is available</b> (you have ${esc(s.version)}).
@@ -174,6 +175,58 @@ function showVersion(s) {
     store.set('update-dismissed', s.update.version);
     banner.hidden = true;
   };
+}
+
+// The Windows app installs updates itself: its tray program downloads the release, swaps the
+// files and restarts SpoolRSS. This page waits for the new version and then reloads.
+let updatingTo = null;
+function showWindowsUpdate(s, banner, release) {
+  if (updatingTo && s.version === updatingTo) location.reload();
+  const updating = updatingTo || (s.update?.updating && s.update.version);
+  banner.hidden = !updating && (!s.update || store.get('update-dismissed', null) === s.update.version);
+  if (banner.hidden) return;
+  if (updating) {
+    banner.innerHTML = `<span><b>Updating to version ${esc(updating)}…</b> SpoolRSS restarts by itself, and this page reloads when it's back.</span>`;
+    return waitForUpdate(updating);
+  }
+  banner.innerHTML = `<span><b>Version ${esc(s.update.version)} is available</b> (you have ${esc(s.version)}).
+    ${release ? `${release}What's new</a>` : ''}</span>
+    <span class="actions"><button type="button" class="primary" data-act="update">Update now</button><button type="button" data-act="dismiss">Later</button></span>`;
+  banner.querySelector('[data-act=dismiss]').onclick = () => {
+    store.set('update-dismissed', s.update.version);
+    banner.hidden = true;
+  };
+  banner.querySelector('[data-act=update]').onclick = async () => {
+    try {
+      await post('/api/update');
+    } catch (err) {
+      return toast(`Couldn't start the update: ${err.message}`);
+    }
+    updatingTo = s.update.version;
+    showWindowsUpdate(s, banner, release);
+  };
+}
+
+let updateWait = null;
+function waitForUpdate(version) {
+  updatingTo = version;
+  if (updateWait) return;
+  // While SpoolRSS restarts, requests fail; keep asking until the new version answers. If the old
+  // version answers twice with the update no longer underway, it failed (and changed nothing).
+  let stalled = 0;
+  updateWait = setInterval(async () => {
+    try {
+      const res = await fetch('/api/state', { cache: 'no-store' });
+      if (!res.ok) return;
+      const s = await res.json();
+      if (s.version === version) return location.reload();
+      stalled = s.update?.updating ? 0 : stalled + 1;
+      if (stalled < 2) return;
+      clearInterval(updateWait);
+      updateWait = updatingTo = null;
+      $('#update').innerHTML = `<span><b>The update to version ${esc(version)} didn't finish.</b> SpoolRSS is still on version ${esc(s.version)}, unchanged. The reason is in <code>data\\spoolrss.log</code> in the SpoolRSS folder.</span>`;
+    } catch { /* still restarting */ }
+  }, 3000);
 }
 
 function navItem({ cls = '', icon, label, count, scope, menu = '', attrs = '' }) {
@@ -848,7 +901,7 @@ $('#markAllBtn').addEventListener('click', () => {
 
 let pollTimer;
 function setRefreshing(on) {
-  $('#refreshBtn').classList.toggle('spin', on);
+  $('#refreshBtn .ico').classList.toggle('spin', on);
   clearTimeout(pollTimer);
   if (on) {
     pollTimer = setTimeout(async () => {

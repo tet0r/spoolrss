@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { db, getSetting, setSetting } from './db.js';
 import { subscribe, refreshAll, isRefreshing, exportOpml, importOpml } from './feeds.js';
-import { VERSION, availableUpdate, startUpdateChecker } from './updates.js';
+import { VERSION, availableUpdate, requestUpdate, startUpdateChecker } from './updates.js';
 import { getIcon } from './icons.js';
 import { fullArticle } from './fulltext.js';
 import { send, readBody, tooManyFailures, recordFailure, clearFailures } from './http.js';
@@ -14,6 +14,10 @@ import { handleFever } from './fever.js';
 import { handleGReader } from './greader.js';
 
 const PORT = Number(process.env.PORT || 8080);
+// Empty listens on every address (as in Docker); the Windows app sets 127.0.0.1.
+const HOST = process.env.HOST || undefined;
+// "windows" for the portable Windows app, which updates differently from Docker.
+const INSTALL = process.env.SPOOLRSS_INSTALL === 'windows' ? 'windows' : 'docker';
 const PASSWORD = process.env.SPOOLRSS_PASSWORD || '';
 const REFRESH_MINUTES = Number(process.env.SPOOLRSS_REFRESH_MINUTES || 15);
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -92,6 +96,7 @@ function state() {
     totals: { unread: totals.unread || 0, starred: totals.starred || 0, total: totals.total || 0 },
     refreshing: isRefreshing(),
     version: VERSION,
+    install: INSTALL,
     update: availableUpdate(),
   };
 }
@@ -139,6 +144,9 @@ const routes = [
     if ('starred' in body) db.prepare('UPDATE articles SET starred = ? WHERE id = ?').run(body.starred ? 1 : 0, Number(m[1]));
     return { ok: true };
   }],
+
+  // The Windows app only: install the available update from within SpoolRSS.
+  ['POST', /^\/api\/update$/, () => (requestUpdate() ? { ok: true } : [409, { error: 'No update to install' }])],
 
   ['POST', /^\/api\/mark-read$/, async (req) => {
     const body = await json(req);
@@ -286,8 +294,15 @@ function subscribeLink(url) {
   return feed ? `/?add=${encodeURIComponent(feed)}` : null;
 }
 
+// Listening only on this computer (as the Windows app does), only this computer's own names are
+// answered. That stops "DNS rebinding": a web page whose own hostname is made to point at
+// 127.0.0.1, which would otherwise let it use SpoolRSS from the browser as if it were SpoolRSS.
+const LOOPBACK = ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(HOST);
+const LOCAL_NAMES = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (LOOPBACK && !LOCAL_NAMES.test(req.headers.host || '')) return send(res, 421, 'SpoolRSS only answers to localhost');
   try {
     if (url.pathname === '/login' && req.method === 'POST') {
       const form = new URLSearchParams(await readBody(req, 64 * 1024));
@@ -344,7 +359,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`SpoolRSS ${VERSION} listening on http://localhost:${PORT}${PASSWORD ? ' (password protected)' : ''}`);
 });
 

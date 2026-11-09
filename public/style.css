@@ -151,6 +151,9 @@ body.resizing iframe { pointer-events: none; }
 .update-banner a { color: var(--accent); font-weight: 600; }
 .update-banner code { font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
 .update-banner button { margin-left: auto; border: 1px solid var(--border); background: var(--bg); border-radius: 6px; padding: 3px 10px; font-size: 12px; }
+.update-banner .actions { margin-left: auto; display: flex; gap: 6px; }
+.update-banner .actions button { margin-left: 0; }
+.update-banner button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .link:hover { color: var(--accent); }
 
 /* ---- buttons/inputs ---- */
@@ -183,11 +186,33 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 kbd { font: 11px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--bg-soft); }
 
 /* ---- list pane ---- */
-.list-pane { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); }
-.toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px 16px; }
+.list-pane { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); container-type: inline-size; }
+/* Title on the left, the list's actions centered in the pane (the third column balances the first). */
+.toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 12px 6px 16px; }
+.toolbar-start { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .title-wrap { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.title-wrap .muted { white-space: nowrap; }
 .title-wrap h2 { margin: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.toolbar-actions { display: flex; gap: 2px; }
+.toolbar-actions { display: flex; gap: 6px; }
+.tool-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 13px; font-weight: 550; white-space: nowrap;
+}
+.tool-btn:hover { background: var(--bg-hover); }
+.tool-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.tool-btn.primary:hover { background: var(--accent); filter: brightness(1.08); }
+.tool-btn .ico { font-size: 16px; line-height: 1; display: inline-block; }
+.tool-btn .ico.spin { animation: spin 1s linear infinite; }
+/* A narrow list (beside the reader, or a phone): the title on its own line, the buttons centered below. */
+@container (max-width: 560px) {
+  .toolbar { grid-template-columns: minmax(0, 1fr); row-gap: 8px; padding-bottom: 8px; }
+  .toolbar-actions { justify-self: center; }
+}
+@container (max-width: 330px) {
+  .tool-btn { width: 38px; padding: 0; }
+  .tool-btn .lbl { display: none; }
+}
 .filterbar { display: flex; gap: 8px; padding: 4px 16px 10px; border-bottom: 1px solid var(--border); align-items: center; }
 .filterbar input { flex: 1; }
 .articles { flex: 1; overflow-y: auto; }

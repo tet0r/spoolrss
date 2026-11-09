@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dataDir = process.env.SPOOLRSS_DATA || path.resolve('data');
+export const dataDir = process.env.SPOOLRSS_DATA || path.resolve('data');
 fs.mkdirSync(dataDir, { recursive: true });
 
 // Databases from before the rename (Feedster) are taken over under the new name, along with

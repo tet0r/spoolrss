@@ -29,15 +29,17 @@
     <section class="list-pane" id="listPane">
       <div class="update-banner" id="update" hidden></div>
       <header class="toolbar">
-        <button class="icon-btn mobile-only" id="menuBtn" title="Menu">☰</button>
-        <div class="title-wrap">
-          <h2 id="scopeTitle">All articles</h2>
-          <span class="muted" id="scopeCount"></span>
+        <div class="toolbar-start">
+          <button class="icon-btn mobile-only" id="menuBtn" title="Menu">☰</button>
+          <div class="title-wrap">
+            <h2 id="scopeTitle">All articles</h2>
+            <span class="muted" id="scopeCount"></span>
+          </div>
         </div>
         <div class="toolbar-actions">
-          <button class="icon-btn" id="refreshBtn" title="Refresh (r)">⟳</button>
-          <button class="icon-btn" id="markAllBtn" title="Mark all as read (Shift+A)">✓✓</button>
-          <button class="icon-btn" id="scopeMenuBtn" title="More">⋯</button>
+          <button class="tool-btn" id="refreshBtn" title="Refresh (r)"><span class="ico" aria-hidden="true">⟳</span><span class="lbl">Refresh</span></button>
+          <button class="tool-btn primary" id="markAllBtn" title="Mark all as read (Shift+A)"><span class="ico" aria-hidden="true">✓✓</span><span class="lbl">Mark all read</span></button>
+          <button class="tool-btn" id="scopeMenuBtn" title="More"><span class="ico" aria-hidden="true">⋯</span><span class="lbl">More</span></button>
         </div>
       </header>
       <div class="filterbar">
