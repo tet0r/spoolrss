@@ -4,6 +4,15 @@ All notable changes to SpoolRSS (called Feedster before 2.0.0) are listed here, 
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-11-14
+
+### Security
+
+- Feeds are parsed with fast-xml-parser 5, which fixes a way for a feed to make parsing very slow.
+- The Windows app downloads updates only from github.com and GitHub's own download hosts, not from other githubusercontent.com hosts, where anyone can publish files.
+- The Windows app warns when other accounts on the computer can change its folder (for example when it's straight under C:\), since they could then change what SpoolRSS runs.
+- Turning off "Run as a Windows service" removes any links in the SpoolRSS folder before giving it back, so the administrator step can only change that folder.
+
 ## [2.1.1] - 2026-11-08
 
 ### Added

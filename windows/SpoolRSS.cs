@@ -18,6 +18,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.ServiceProcess;
@@ -522,8 +523,10 @@ static class Updater
         if (uri.Host == "127.0.0.1") return true; // test builds only (build.mjs --test)
 #endif
         if (uri.Scheme != Uri.UriSchemeHttps) return false;
+        // github.com and the hosts it serves release downloads from, nothing else: other
+        // githubusercontent.com hosts serve files anyone can publish.
         var host = uri.Host.ToLowerInvariant();
-        return host == "github.com" || host.EndsWith(".githubusercontent.com");
+        return host == "github.com" || host == "release-assets.githubusercontent.com" || host == "objects.githubusercontent.com";
     }
 
     static byte[] Download(string url)
@@ -819,11 +822,36 @@ static class Service
 
     static void Unlock(string userSid)
     {
+        RemoveLinks(Paths.Root);
         Run("icacls.exe", "\"" + Paths.Root + "\" /setowner *" + userSid + " /T /C /Q");
         Run("icacls.exe", "\"" + Paths.Root + "\" /reset /T /C /Q");
         // With inheritance back, the user's own access comes from the parent folder again; add it
         // directly too, in case the parent doesn't give it (a folder at the root of a drive).
         Run("icacls.exe", "\"" + Paths.Root + "\" /grant *" + userSid + ":(OI)(CI)F /C /Q");
+    }
+
+    /// <summary>
+    /// Deletes links (junctions and symbolic links) inside the folder, never what they point to.
+    /// Nothing but the service could have made one while it ran, and the permission changes
+    /// that follow run as an administrator, so they must only ever touch this folder.
+    /// </summary>
+    static void RemoveLinks(string dir)
+    {
+        try
+        {
+            foreach (var entry in Directory.GetFileSystemEntries(dir))
+            {
+                var attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    Server.Write("Removing a link: " + entry);
+                    if ((attributes & FileAttributes.Directory) != 0) Directory.Delete(entry, false); // the link only
+                    else File.Delete(entry);
+                }
+                else if ((attributes & FileAttributes.Directory) != 0) RemoveLinks(entry);
+            }
+        }
+        catch (Exception ex) { Server.Write("Couldn't check " + dir + " for links: " + ex.Message); }
     }
 
     // These two run elevated, in a separate SpoolRSS.exe started with "runas", given the SID of
@@ -1025,6 +1053,12 @@ class Tray : ApplicationContext
         UpdateMenu();
         Autostart.Repair();
         Updater.CleanUp();
+        if (!Service.Installed && OthersCanChange(Paths.Root))
+        {
+            Server.Write("Warning: other accounts on this computer can change " + Paths.Root);
+            Notify("Other accounts on this computer can change the SpoolRSS folder, and so what SpoolRSS runs. Move the folder into your own user folder, such as Documents.", ToolTipIcon.Warning);
+            quiet = true;
+        }
 
         bool firstRun = !File.Exists(Path.Combine(Paths.Data, "spoolrss.db"));
         if (Service.Installed)
@@ -1188,6 +1222,30 @@ class Tray : ApplicationContext
         server.Stop();
         server.Start();
         Notify(message ?? "SpoolRSS restarted.", ToolTipIcon.Info);
+    }
+
+    /// <summary>
+    /// True when everyone, or every signed-in or ordinary user, may change the folder: as for a
+    /// new folder made at the root of a drive, where Windows gives all signed-in users that right.
+    /// </summary>
+    static bool OthersCanChange(string folder)
+    {
+        try
+        {
+            var broad = new[] { "S-1-1-0", "S-1-5-11", "S-1-5-32-545", "S-1-5-4" };
+            const FileSystemRights change = FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.Delete
+                | FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
+            var rules = Directory.GetAccessControl(folder).GetAccessRules(true, true, typeof(SecurityIdentifier));
+            foreach (FileSystemAccessRule rule in rules)
+            {
+                if (rule.AccessControlType == AccessControlType.Allow
+                    && Array.IndexOf(broad, rule.IdentityReference.Value) >= 0
+                    && (rule.FileSystemRights & change) != 0)
+                    return true;
+            }
+        }
+        catch (Exception) { }
+        return false;
     }
 
     static bool Confirm(string text)
